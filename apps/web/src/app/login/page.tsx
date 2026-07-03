@@ -1,24 +1,42 @@
-import Link from "next/link";
+"use client";
+
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001";
+
+const ERRORS: Record<string, string> = {
+  not_activated:
+    "Your account is not activated. Contact the administrator to get access.",
+  auth_failed: "Authentication failed. Please try again.",
+};
+
+function ErrorBanner() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get("error");
+  const message = error ? (ERRORS[error] ?? ERRORS.auth_failed) : null;
+  if (!message) return null;
+  return (
+    <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+      <p className="text-sm text-destructive">{message}</p>
+    </div>
+  );
+}
 
 export default function LoginPage() {
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       {/* Logo */}
-      <Link href="/" className="mb-10 flex items-center gap-2.5">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 76 65"
-          fill="currentColor"
-          className="text-foreground"
-        >
+      <div className="mb-10 flex items-center gap-2.5">
+        <svg width="20" height="20" viewBox="0 0 76 65" fill="currentColor" className="text-foreground">
           <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
         </svg>
         <span className="text-base font-semibold tracking-tight">Relay</span>
-      </Link>
+      </div>
 
       {/* Card */}
-      <div className="w-full max-w-[340px] rounded-xl border border-border bg-card p-8">
+      <div className="w-full max-w-85 rounded-xl border border-border bg-card p-8">
         <div className="mb-6">
           <h1 className="text-lg font-semibold tracking-tight">Sign in</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -26,12 +44,16 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Google OAuth button — href points to Go backend */}
+        {/* Error banner */}
+        <Suspense>
+          <ErrorBanner />
+        </Suspense>
+
+        {/* Google OAuth — browser follows backend redirect */}
         <a
-          href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/auth/google`}
+          href={`${API_URL}/auth/google`}
           className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
         >
-          {/* Google logo */}
           <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
             <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
             <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>

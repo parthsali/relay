@@ -67,12 +67,15 @@ func (s *Service) FindOrCreateUser(ctx context.Context, info *GoogleUserInfo) (s
 }
 
 // GenerateJWT signs a 24-hour HS256 token for the given user.
+// Claims include name and avatar so the frontend can render the user without an API call.
 func (s *Service) GenerateJWT(user store.User) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id": user.ID,
-		"email":   user.Email,
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
-		"iat":     time.Now().Unix(),
+		"user_id":    user.ID,
+		"email":      user.Email,
+		"name":       user.Name,
+		"avatar_url": user.AvatarUrl,
+		"exp":        time.Now().Add(24 * time.Hour).Unix(),
+		"iat":        time.Now().Unix(),
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(s.jwtSecret))
 }

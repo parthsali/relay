@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Sun, Moon, LogOut, User } from "lucide-react";
@@ -13,27 +14,43 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-// Placeholder — replace with real session data from your auth context/cookie
-const user = {
-  name: "Parth Sali",
-  email: "parth@example.com",
-  image: "",
-};
+interface JwtUser {
+  name: string;
+  email: string;
+  avatar_url: string;
+}
+
+function getTokenCookie(): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  const m = document.cookie.match(/(?:^|;\s*)relay_token=([^;]+)/);
+  return m?.[1];
+}
+
+function decodeJwt(token: string): JwtUser | null {
+  try {
+    const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(payload)) as JwtUser;
+  } catch {
+    return null;
+  }
+}
 
 export function TopNav() {
   const { theme, setTheme } = useTheme();
   const router = useRouter();
+  const [user, setUser] = useState<JwtUser | null>(null);
 
-  const initials = user.name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  useEffect(() => {
+    const token = getTokenCookie();
+    if (token) setUser(decodeJwt(token));
+  }, []);
+
+  const initials = user?.name
+    ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    : "?";
 
   function handleLogout() {
-    // Clear token/session then redirect
-    document.cookie = "token=; Max-Age=0; path=/";
+    document.cookie = "relay_token=; Max-Age=0; path=/";
     router.push("/login");
   }
 
@@ -72,26 +89,46 @@ export function TopNav() {
 
         {/* User menu */}
         <DropdownMenu>
-          <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring ring-offset-background">
-            <Avatar className="size-7">
-              <AvatarImage src={user.image} alt={user.name} />
-              <AvatarFallback className="text-[10px] font-semibold">{initials}</AvatarFallback>
+          <DropdownMenuTrigger className="flex items-center gap-2 rounded-md px-1.5 py-1 outline-none hover:bg-accent transition-colors focus-visible:ring-2 focus-visible:ring-ring">
+            <Avatar className="size-6">
+              {/* referrerPolicy="no-referrer" is required for Google profile photos */}
+              <AvatarImage
+                src={user?.avatar_url}
+                alt={user?.name ?? ""}
+                referrerPolicy="no-referrer"
+              />
+              <AvatarFallback className="text-[9px] font-semibold bg-muted">
+                {initials}
+              </AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <div className="px-2 py-1.5">
-              <p className="text-sm font-medium truncate">{user.name}</p>
-              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+          <DropdownMenuContent align="end" className="w-56">
+            {/* User info header */}
+            <div className="flex items-center gap-3 px-3 py-2.5">
+              <Avatar className="size-8">
+                <AvatarImage
+                  src={user?.avatar_url}
+                  alt={user?.name ?? ""}
+                  referrerPolicy="no-referrer"
+                />
+                <AvatarFallback className="text-xs font-semibold bg-muted">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex min-w-0 flex-col">
+                <p className="truncate text-sm font-medium">{user?.name ?? "—"}</p>
+                <p className="truncate text-xs text-muted-foreground">{user?.email ?? ""}</p>
+              </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="flex items-center gap-2 cursor-pointer" onClick={() => {}}>
+            <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
               <User className="size-3.5" />
-              <Link href="/settings" className="flex items-center gap-2">Profile</Link>
+              <Link href="/settings">Profile</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleLogout}
-              className="flex items-center gap-2 text-destructive focus:text-destructive cursor-pointer"
+              className="cursor-pointer text-destructive focus:text-destructive"
             >
               <LogOut className="size-3.5" />
               Log out

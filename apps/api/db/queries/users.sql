@@ -12,6 +12,9 @@ INSERT INTO users (email, name, avatar_url, google_id)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
 
+-- name: ActivateUser :one
+UPDATE users SET is_activated = true, updated_at = NOW() WHERE id = $1 RETURNING *;
+
 -- name: UpdateUser :one
 UPDATE users
 SET name       = $1,

@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
@@ -19,6 +20,11 @@ import (
 )
 
 func main() {
+	// Load .env file if present (ignored in production where vars are injected)
+	if err := godotenv.Load(); err != nil {
+		log.Println("no .env file found, using environment variables")
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config: %v", err)
@@ -52,10 +58,23 @@ func main() {
 
 	// --- Wire modules ---
 	userHandler := usersModule.NewHandler(usersModule.NewService(queries))
-	authHandler := authModule.NewHandler(authModule.NewService(queries, cfg.JWTSecret), oauthConfig)
+	authHandler := authModule.NewHandler(authModule.NewService(queries, cfg.JWTSecret), oauthConfig, cfg.FrontendURL)
 
 	// --- Router ---
 	r := gin.Default()
+
+	// CORS — allow the Next.js frontend to call the API
+	r.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", cfg.FrontendURL)
+		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type,Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "environment": cfg.Environment})
