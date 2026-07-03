@@ -6,14 +6,17 @@ import (
 )
 
 type Config struct {
-	Port               string
-	Environment        string
-	DatabaseURL        string
-	JWTSecret          string
-	GoogleClientID     string
-	GoogleClientSecret string
-	GoogleRedirectURL  string
-	FrontendURL        string
+	Port                string
+	Environment         string
+	DatabaseURL         string
+	JWTSecret           string
+	GoogleClientID      string
+	GoogleClientSecret  string
+	GoogleRedirectURL   string
+	FrontendURL         string
+	SpotifyClientID     string
+	SpotifyClientSecret string
+	SpotifyRedirectURL  string
 }
 
 func Load() (*Config, error) {
@@ -32,14 +35,17 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		Port:               getEnv("PORT", "8080"),
-		Environment:        getEnv("ENVIRONMENT", "development"),
-		DatabaseURL:        *required["DATABASE_URL"],
-		JWTSecret:          *required["JWT_SECRET"],
-		GoogleClientID:     *required["GOOGLE_CLIENT_ID"],
-		GoogleClientSecret: *required["GOOGLE_CLIENT_SECRET"],
-		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
-		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
+		Port:                getEnv("PORT", "8080"),
+		Environment:         getEnv("ENVIRONMENT", "development"),
+		DatabaseURL:         *required["DATABASE_URL"],
+		JWTSecret:           *required["JWT_SECRET"],
+		GoogleClientID:      *required["GOOGLE_CLIENT_ID"],
+		GoogleClientSecret:  *required["GOOGLE_CLIENT_SECRET"],
+		GoogleRedirectURL:   getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
+		FrontendURL:         getEnv("FRONTEND_URL", "http://localhost:3000"),
+		SpotifyClientID:     getEnv("SPOTIFY_CLIENT_ID", ""),
+		SpotifyClientSecret: getEnv("SPOTIFY_CLIENT_SECRET", ""),
+		SpotifyRedirectURL:  getEnv("SPOTIFY_REDIRECT_URL", "http://localhost:5001/spotify/callback"),
 	}, nil
 }
 

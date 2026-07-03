@@ -11,10 +11,13 @@ import (
 type Querier interface {
 	ActivateUser(ctx context.Context, id string) (User, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteSpotifyToken(ctx context.Context, userID string) error
+	GetSpotifyToken(ctx context.Context, userID string) (SpotifyToken, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByGoogleID(ctx context.Context, googleID *string) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	UpsertSpotifyToken(ctx context.Context, arg UpsertSpotifyTokenParams) (SpotifyToken, error)
 }
 
 var _ Querier = (*Queries)(nil)

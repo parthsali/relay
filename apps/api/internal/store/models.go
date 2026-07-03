@@ -8,6 +8,16 @@ import (
 	"time"
 )
 
+type SpotifyToken struct {
+	UserID       string    `json:"user_id"`
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	Scope        string    `json:"scope"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type User struct {
 	ID          string    `json:"id"`
 	Email       string    `json:"email"`

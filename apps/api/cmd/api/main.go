@@ -15,6 +15,7 @@ import (
 	"github.com/parthsali/relay/apps/api/internal/middleware"
 	"github.com/parthsali/relay/apps/api/internal/migrator"
 	authModule "github.com/parthsali/relay/apps/api/internal/modules/auth"
+	spotifyModule "github.com/parthsali/relay/apps/api/internal/modules/spotify"
 	usersModule "github.com/parthsali/relay/apps/api/internal/modules/users"
 	"github.com/parthsali/relay/apps/api/internal/store"
 )
@@ -59,6 +60,10 @@ func main() {
 	// --- Wire modules ---
 	userHandler := usersModule.NewHandler(usersModule.NewService(queries))
 	authHandler := authModule.NewHandler(authModule.NewService(queries, cfg.JWTSecret), oauthConfig, cfg.FrontendURL)
+	spotifyHandler := spotifyModule.NewHandler(
+		spotifyModule.NewService(queries, cfg.SpotifyClientID, cfg.SpotifyClientSecret, cfg.SpotifyRedirectURL),
+		cfg.FrontendURL,
+	)
 
 	// --- Router ---
 	r := gin.Default()
@@ -84,11 +89,15 @@ func main() {
 	authGroup := r.Group("/auth")
 	authHandler.RegisterRoutes(authGroup)
 
+	// Public: Spotify OAuth callback — Spotify redirects here without a JWT
+	r.Group("/spotify").GET("/callback", spotifyHandler.Callback)
+
 	// All other routes require a valid JWT
 	protected := r.Group("/")
 	protected.Use(middleware.Auth(cfg.JWTSecret))
 	{
 		userHandler.RegisterRoutes(protected.Group("/users"))
+		spotifyHandler.RegisterProtectedRoutes(protected.Group("/spotify"))
 	}
 
 	log.Printf("starting server on :%s [%s]", cfg.Port, cfg.Environment)
