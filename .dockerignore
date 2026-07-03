@@ -1,0 +1,20 @@
+# Version control
+.git
+.gitignore
+
+# GitHub Actions
+.github
+
+# Frontend — not needed for the API image
+apps/web
+
+# Local env files — never bake secrets into the image
+.env
+.env.*
+apps/api/.env
+apps/api/.env.*
+
+# Docs & configs not needed at runtime
+*.md
+docker-compose.yml
+Makefile
