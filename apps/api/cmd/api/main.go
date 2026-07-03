@@ -1,25 +1,79 @@
 package main
 
 import (
+	"context"
+	"log"
+
 	"github.com/gin-gonic/gin"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+
 	"github.com/parthsali/relay/apps/api/config"
+	"github.com/parthsali/relay/apps/api/db"
+	"github.com/parthsali/relay/apps/api/internal/database"
+	"github.com/parthsali/relay/apps/api/internal/middleware"
+	"github.com/parthsali/relay/apps/api/internal/migrator"
+	authModule "github.com/parthsali/relay/apps/api/internal/modules/auth"
+	usersModule "github.com/parthsali/relay/apps/api/internal/modules/users"
+	"github.com/parthsali/relay/apps/api/internal/store"
 )
 
 func main() {
-	conf, err := config.Load()
+	cfg, err := config.Load()
 	if err != nil {
-		panic(err)
+		log.Fatalf("config: %v", err)
 	}
 
-	router := gin.Default()
+	ctx := context.Background()
 
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status":      "ok",
-			"environment": conf.Environment,
-			"message":     "Relay API running smoothly",
-		})
+	// --- Database ---
+	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("db connect: %v", err)
+	}
+	defer pool.Close()
+
+	// --- Migrations (embedded SQL files, tracked in schema_migrations) ---
+	if err := migrator.New(pool, db.Migrations, "migrations").Run(ctx); err != nil {
+		log.Fatalf("migrations: %v", err)
+	}
+
+	// --- sqlc-generated store ---
+	queries := store.New(pool)
+
+	// --- Google OAuth config ---
+	oauthConfig := &oauth2.Config{
+		ClientID:     cfg.GoogleClientID,
+		ClientSecret: cfg.GoogleClientSecret,
+		RedirectURL:  cfg.GoogleRedirectURL,
+		Scopes:       []string{"openid", "email", "profile"},
+		Endpoint:     google.Endpoint,
+	}
+
+	// --- Wire modules ---
+	userHandler := usersModule.NewHandler(usersModule.NewService(queries))
+	authHandler := authModule.NewHandler(authModule.NewService(queries, cfg.JWTSecret), oauthConfig)
+
+	// --- Router ---
+	r := gin.Default()
+
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok", "environment": cfg.Environment})
 	})
 
-	router.Run(":" + conf.Port)
+	// Public: Google OAuth — no JWT required
+	authGroup := r.Group("/auth")
+	authHandler.RegisterRoutes(authGroup)
+
+	// All other routes require a valid JWT
+	protected := r.Group("/")
+	protected.Use(middleware.Auth(cfg.JWTSecret))
+	{
+		userHandler.RegisterRoutes(protected.Group("/users"))
+	}
+
+	log.Printf("starting server on :%s [%s]", cfg.Port, cfg.Environment)
+	if err := r.Run(":" + cfg.Port); err != nil {
+		log.Fatalf("server: %v", err)
+	}
 }

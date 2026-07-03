@@ -6,39 +6,44 @@ import (
 )
 
 type Config struct {
-	Port        string
-	Environment string
-	DatabaseURL string
+	Port               string
+	Environment        string
+	DatabaseURL        string
+	JWTSecret          string
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
 }
 
 func Load() (*Config, error) {
-	var Port = getEnv("PORT", "8080")
-	var Environment = getEnv("ENVIRONMENT", "development")
-	var DatabaseURL = getEnv("DATABASE_URL", "postgres://localhost:5432/relay")
-
-	if Port == "" {
-		return nil, fmt.Errorf("PORT environment variable is required")
+	required := map[string]*string{
+		"DATABASE_URL":         new(string),
+		"JWT_SECRET":           new(string),
+		"GOOGLE_CLIENT_ID":     new(string),
+		"GOOGLE_CLIENT_SECRET": new(string),
 	}
-
-	if DatabaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_URL environment variable is required")
-	}
-
-	if Environment == "" {
-		return nil, fmt.Errorf("ENVIRONMENT environment variable is required")
+	for key, ptr := range required {
+		val := os.Getenv(key)
+		if val == "" {
+			return nil, fmt.Errorf("%s environment variable is required", key)
+		}
+		*ptr = val
 	}
 
 	return &Config{
-		Port:        Port,
-		Environment: Environment,
-		DatabaseURL: DatabaseURL,
+		Port:               getEnv("PORT", "8080"),
+		Environment:        getEnv("ENVIRONMENT", "development"),
+		DatabaseURL:        *required["DATABASE_URL"],
+		JWTSecret:          *required["JWT_SECRET"],
+		GoogleClientID:     *required["GOOGLE_CLIENT_ID"],
+		GoogleClientSecret: *required["GOOGLE_CLIENT_SECRET"],
+		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
 	}, nil
 }
 
 func getEnv(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
+	if value, exists := os.LookupEnv(key); exists && value != "" {
+		return value
 	}
-	return value
+	return defaultValue
 }
