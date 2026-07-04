@@ -28,15 +28,28 @@ jobs:
         id: ver
         run: |
           git fetch --tags
-          LATEST=$(git tag -l "v[0-9]*" | sort -V | tail -1)
-          CURRENT="${LATEST#v}"
-          [ -z "$CURRENT" ] && CURRENT="0.0.0"
-          MAJ=$(echo "$CURRENT" | cut -d. -f1)
-          MIN=$(echo "$CURRENT" | cut -d. -f2)
-          VERSION="${MAJ}.$((MIN + 1)).0"
+
+          # Collect the highest minor seen across all three tag series.
+          # This prevents collisions with patch tags (api/v*, agent/v*)
+          # that were already pushed by the auto-tag workflows.
+          max_minor() {
+            git tag -l "$1" | sed "s|$2||" | sort -V | tail -1 | cut -d. -f2
+          }
+
+          M1=$(max_minor "v[0-9]*"     "v")
+          M2=$(max_minor "api/v*"      "api/v")
+          M3=$(max_minor "agent/v*"    "agent/v")
+
+          # Pick the highest minor found, default 0 if no tags yet
+          HIGH_MIN=0
+          for m in "$M1" "$M2" "$M3"; do
+            [ -n "$m" ] && [ "$m" -gt "$HIGH_MIN" ] && HIGH_MIN="$m"
+          done
+
+          VERSION="0.$((HIGH_MIN + 1)).0"
           echo "version=${VERSION}"                      >> "$GITHUB_OUTPUT"
           echo "minor=$(echo $VERSION | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
-          echo "${CURRENT} -> ${VERSION}"
+          echo "Resolved: minor=${HIGH_MIN} -> ${VERSION}"
 
   build-api:
     name: Build API image
