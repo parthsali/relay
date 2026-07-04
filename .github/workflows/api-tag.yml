@@ -1,0 +1,85 @@
+name: API Tag (patch)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "docker/api/**"
+
+concurrency:
+  group: tag-api
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  tag:
+    name: Patch tag + Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history for tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve next patch version
+        id: ver
+        run: |
+          git fetch --tags
+          LATEST=$(git tag -l "api/v*" | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then
+            NEXT="0.1.0"
+          else
+            V="${LATEST#api/v}"
+            MAJ=$(echo "$V" | cut -d. -f1)
+            MIN=$(echo "$V" | cut -d. -f2)
+            PAT=$(echo "$V" | cut -d. -f3)
+            NEXT="${MAJ}.${MIN}.$((PAT + 1))"
+          fi
+          echo "next=${NEXT}"                        >> "$GITHUB_OUTPUT"
+          echo "minor=$(echo $NEXT | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${LATEST:-none} → api/v${NEXT}"
+
+      - name: Push git tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "api/v${{ steps.ver.outputs.next }}"
+          git push origin "api/v${{ steps.ver.outputs.next }}"
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/api/Dockerfile
+          push: true
+          provenance: false
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/relay-api:${{ steps.ver.outputs.next }}
+            ghcr.io/${{ github.repository_owner }}/relay-api:${{ steps.ver.outputs.minor }}
+            ghcr.io/${{ github.repository_owner }}/relay-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "### API patch — v${{ steps.ver.outputs.next }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag   | \`api/v${{ steps.ver.outputs.next }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | \`ghcr.io/${{ github.repository_owner }}/relay-api:${{ steps.ver.outputs.next }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Alias | \`ghcr.io/${{ github.repository_owner }}/relay-api:${{ steps.ver.outputs.minor }}\` |" >> "$GITHUB_STEP_SUMMARY"

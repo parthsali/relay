@@ -1,0 +1,162 @@
+name: Release (manual)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release-api:
+    name: API — minor release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history for tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve next minor version
+        id: ver
+        run: |
+          git fetch --tags
+          LATEST=$(git tag -l "api/v*" | sort -V | tail -1)
+          CURRENT="${LATEST#api/v}"
+          [ -z "$CURRENT" ] && CURRENT="0.0.0"
+          MAJ=$(echo "$CURRENT" | cut -d. -f1)
+          MIN=$(echo "$CURRENT" | cut -d. -f2)
+          NEXT="${MAJ}.$((MIN + 1)).0"
+          echo "next=${NEXT}"                        >> "$GITHUB_OUTPUT"
+          echo "minor=$(echo $NEXT | cut -d. -f1-2)" >> "$GITHUB_OUTPUT"
+          echo "major=$(echo $NEXT | cut -d. -f1)"   >> "$GITHUB_OUTPUT"
+          echo "${CURRENT} → ${NEXT}"
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/api/Dockerfile
+          push: true
+          provenance: false
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/relay-api:${{ steps.ver.outputs.next }}
+            ghcr.io/${{ github.repository_owner }}/relay-api:${{ steps.ver.outputs.minor }}
+            ghcr.io/${{ github.repository_owner }}/relay-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Push git tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "api/v${{ steps.ver.outputs.next }}"
+          git push origin "api/v${{ steps.ver.outputs.next }}"
+
+      - name: Create GitHub Pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: api/v${{ steps.ver.outputs.next }}
+          name: "API v${{ steps.ver.outputs.next }}"
+          prerelease: true
+          generate_release_notes: true
+          body: |
+            ## relay-api v${{ steps.ver.outputs.next }}
+
+            ```bash
+            docker pull ghcr.io/${{ github.repository_owner }}/relay-api:${{ steps.ver.outputs.next }}
+            # or pin to minor (auto-updated on future patches):
+            docker pull ghcr.io/${{ github.repository_owner }}/relay-api:${{ steps.ver.outputs.minor }}
+            ```
+
+  release-agent:
+    name: Agent — minor release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history for tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/agent/go.mod
+          cache-dependency-path: apps/agent/go.sum
+
+      - name: Resolve next minor version
+        id: ver
+        run: |
+          git fetch --tags
+          LATEST=$(git tag -l "agent/v*" | sort -V | tail -1)
+          CURRENT="${LATEST#agent/v}"
+          [ -z "$CURRENT" ] && CURRENT="0.0.0"
+          MAJ=$(echo "$CURRENT" | cut -d. -f1)
+          MIN=$(echo "$CURRENT" | cut -d. -f2)
+          NEXT="${MAJ}.$((MIN + 1)).0"
+          echo "next=${NEXT}" >> "$GITHUB_OUTPUT"
+          echo "${CURRENT} → ${NEXT}"
+
+      - name: Build binaries
+        working-directory: apps/agent
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          VERSION="${{ steps.ver.outputs.next }}"
+          LDFLAGS="-s -w -X main.Version=${VERSION}"
+          mkdir -p dist
+          for TARGET in linux/arm64 linux/arm linux/amd64; do
+            OS="${TARGET%%/*}" ARCH="${TARGET##*/}"
+            GOOS="$OS" GOARCH="$ARCH" go build \
+              -trimpath -ldflags "$LDFLAGS" \
+              -o "dist/relay-agent_${OS}_${ARCH}" ./cmd/api
+          done
+
+      - name: Generate checksums
+        working-directory: apps/agent/dist
+        run: sha256sum relay-agent_* > sha256sums.txt
+
+      - name: Create GitHub Pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: agent/v${{ steps.ver.outputs.next }}
+          name: "Agent v${{ steps.ver.outputs.next }}"
+          prerelease: true
+          generate_release_notes: true
+          body: |
+            ## relay-agent v${{ steps.ver.outputs.next }}
+
+            ```bash
+            VERSION="${{ steps.ver.outputs.next }}"
+            curl -fsSL "https://github.com/${{ github.repository }}/releases/download/agent/v${VERSION}/relay-agent_linux_arm64" \
+              -o /usr/local/bin/relay-agent && chmod +x /usr/local/bin/relay-agent
+            ```
+
+            | Binary | Target |
+            |--------|--------|
+            | `relay-agent_linux_arm64` | Pi Zero 2 W, Pi 4/5 (64-bit) |
+            | `relay-agent_linux_arm`   | Pi Zero W (32-bit ARMv6/7)   |
+            | `relay-agent_linux_amd64` | x86-64 dev / CI               |
+
+            > **OTA:** Dashboard → Updates → enter version + URL + SHA-256 → Push Update.
+          files: |
+            apps/agent/dist/relay-agent_linux_arm64
+            apps/agent/dist/relay-agent_linux_arm
+            apps/agent/dist/relay-agent_linux_amd64
+            apps/agent/dist/sha256sums.txt

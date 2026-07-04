@@ -1,0 +1,101 @@
+name: Agent Tag (patch)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/agent/**"
+
+concurrency:
+  group: tag-agent
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Patch tag + binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history for tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/agent/go.mod
+          cache-dependency-path: apps/agent/go.sum
+
+      - name: Resolve next patch version
+        id: ver
+        run: |
+          git fetch --tags
+          LATEST=$(git tag -l "agent/v*" | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then
+            NEXT="0.1.0"
+          else
+            V="${LATEST#agent/v}"
+            MAJ=$(echo "$V" | cut -d. -f1)
+            MIN=$(echo "$V" | cut -d. -f2)
+            PAT=$(echo "$V" | cut -d. -f3)
+            NEXT="${MAJ}.${MIN}.$((PAT + 1))"
+          fi
+          echo "next=${NEXT}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${LATEST:-none} → agent/v${NEXT}"
+
+      - name: Push git tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "agent/v${{ steps.ver.outputs.next }}"
+          git push origin "agent/v${{ steps.ver.outputs.next }}"
+
+      - name: Build binaries
+        working-directory: apps/agent
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          VERSION="${{ steps.ver.outputs.next }}"
+          LDFLAGS="-s -w -X main.Version=${VERSION}"
+          mkdir -p dist
+          for TARGET in linux/arm64 linux/arm linux/amd64; do
+            OS="${TARGET%%/*}" ARCH="${TARGET##*/}"
+            echo "Building relay-agent_${OS}_${ARCH}…"
+            GOOS="$OS" GOARCH="$ARCH" go build \
+              -trimpath -ldflags "$LDFLAGS" \
+              -o "dist/relay-agent_${OS}_${ARCH}" ./cmd/api
+          done
+
+      - name: Generate checksums
+        working-directory: apps/agent/dist
+        run: sha256sum relay-agent_* > sha256sums.txt && cat sha256sums.txt
+
+      # Upload binaries to the tag commit as a draft-less attachment.
+      # softprops creates the GitHub Release on top of the existing git tag.
+      - name: Attach binaries to tag (no release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: agent/v${{ steps.ver.outputs.next }}
+          name: "Agent v${{ steps.ver.outputs.next }} (patch)"
+          prerelease: true
+          generate_release_notes: false
+          body: |
+            Automated patch build — binaries attached.
+            For a full release with release notes, trigger the **Release** workflow manually.
+          files: |
+            apps/agent/dist/relay-agent_linux_arm64
+            apps/agent/dist/relay-agent_linux_arm
+            apps/agent/dist/relay-agent_linux_amd64
+            apps/agent/dist/sha256sums.txt
+
+      - name: Summary
+        run: |
+          echo "### Agent patch — v${{ steps.ver.outputs.next }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag     | \`agent/v${{ steps.ver.outputs.next }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Targets | \`linux/arm64\`, \`linux/arm\`, \`linux/amd64\` |" >> "$GITHUB_STEP_SUMMARY"
