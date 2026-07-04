@@ -84,6 +84,22 @@ type DeviceWithStatus struct {
 	IsOnline bool `json:"is_online"`
 }
 
+// SendCommand forwards a simple typed command to the device agent.
+// For commands that carry no payload (agent.restart), the hub message has an empty data field.
+func (s *Service) SendCommand(deviceID, msgType string) error {
+	allowed := map[string]bool{
+		hub.TypeAgentRestart:         true,
+		hub.TypeDisplaySetMode:       true,
+		hub.TypeDisplaySetBrightness: true,
+		hub.TypeSpotifySync:          true,
+	}
+	if !allowed[msgType] {
+		return fmt.Errorf("unknown command type: %s", msgType)
+	}
+	s.hub.SendToDevice(deviceID, hub.Msg{Type: msgType})
+	return nil
+}
+
 // generateSecret returns a 32-byte hex-encoded random string.
 func generateSecret() (string, error) {
 	b := make([]byte, 32)

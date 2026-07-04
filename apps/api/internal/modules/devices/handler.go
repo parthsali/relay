@@ -25,11 +25,13 @@ func NewHandler(svc *Service) *Handler {
 //	GET    /devices
 //	DELETE /devices/:id
 //	GET    /devices/:id/state
+//	POST   /devices/:id/command
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/register", h.Register)
 	rg.GET("", h.List)
 	rg.DELETE("/:id", h.Delete)
 	rg.GET("/:id/state", h.State)
+	rg.POST("/:id/command", h.Command)
 }
 
 type registerRequest struct {
@@ -83,4 +85,24 @@ func (h *Handler) State(c *gin.Context) {
 		return
 	}
 	response.OK(c, state)
+}
+
+type commandRequest struct {
+	Type string `json:"type" binding:"required"`
+}
+
+// Command forwards a typed command to the device agent via the hub.
+// Supported types: agent.restart, agent.update, display.set_mode, display.set_brightness
+func (h *Handler) Command(c *gin.Context) {
+	deviceID := c.Param("id")
+	var req commandRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if err := h.svc.SendCommand(deviceID, req.Type); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"sent": true})
 }

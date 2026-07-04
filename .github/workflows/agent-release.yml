@@ -1,0 +1,118 @@
+name: Agent Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/agent/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release Agent Binary
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/agent/go.mod
+          cache-dependency-path: apps/agent/go.sum
+
+      - name: Resolve next version
+        id: version
+        run: |
+          git fetch --tags
+          LATEST=$(git tag -l "agent/v*" | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then
+            NEXT="0.1.0"
+          else
+            VERSION="${LATEST#agent/v}"
+            MAJOR=$(echo "$VERSION" | cut -d. -f1)
+            MINOR=$(echo "$VERSION" | cut -d. -f2)
+            PATCH=$(echo "$VERSION" | cut -d. -f3)
+            NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          fi
+          echo "next=${NEXT}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${NEXT}"
+
+      - name: Build binaries
+        working-directory: apps/agent
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          VERSION="${{ steps.version.outputs.next }}"
+          LDFLAGS="-s -w -X main.Version=${VERSION}"
+          TARGETS="linux/arm64 linux/arm linux/amd64"
+
+          mkdir -p dist
+          for TARGET in $TARGETS; do
+            OS=$(echo "$TARGET" | cut -d/ -f1)
+            ARCH=$(echo "$TARGET" | cut -d/ -f2)
+            OUTPUT="dist/relay-agent_${OS}_${ARCH}"
+            echo "Building ${OUTPUT}..."
+            GOOS="$OS" GOARCH="$ARCH" go build \
+              -trimpath \
+              -ldflags "$LDFLAGS" \
+              -o "$OUTPUT" \
+              ./cmd/api
+          done
+
+      - name: Generate checksums
+        working-directory: apps/agent/dist
+        run: |
+          sha256sum relay-agent_* > sha256sums.txt
+          cat sha256sums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: agent/v${{ steps.version.outputs.next }}
+          name: "Agent v${{ steps.version.outputs.next }}"
+          body: |
+            ## relay-agent v${{ steps.version.outputs.next }}
+
+            ### Installation (Raspberry Pi Zero 2 W)
+            ```bash
+            curl -fsSL https://github.com/${{ github.repository }}/releases/download/agent/v${{ steps.version.outputs.next }}/relay-agent_linux_arm64 \
+              -o /usr/local/bin/relay-agent && chmod +x /usr/local/bin/relay-agent
+            ```
+
+            ### Supported platforms
+            | Binary | Target |
+            |--------|--------|
+            | `relay-agent_linux_arm64` | Pi Zero 2 W, Pi 4/5 (64-bit) |
+            | `relay-agent_linux_arm`   | Pi Zero W (32-bit ARMv6) |
+            | `relay-agent_linux_amd64` | x86-64 dev / CI |
+
+            SHA256 checksums are in `sha256sums.txt`.
+          files: |
+            apps/agent/dist/relay-agent_linux_arm64
+            apps/agent/dist/relay-agent_linux_arm
+            apps/agent/dist/relay-agent_linux_amd64
+            apps/agent/dist/sha256sums.txt
+          generate_release_notes: false
+
+      - name: Tag commit
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "agent/v${{ steps.version.outputs.next }}"
+          git push origin "agent/v${{ steps.version.outputs.next }}"
+
+      - name: Print summary
+        run: |
+          echo "### Agent Release" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`${{ steps.version.outputs.next }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag | \`agent/v${{ steps.version.outputs.next }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Targets | \`linux/arm64\`, \`linux/arm\`, \`linux/amd64\` |" >> "$GITHUB_STEP_SUMMARY"
