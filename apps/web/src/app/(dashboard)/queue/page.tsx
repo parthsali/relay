@@ -1,8 +1,13 @@
-import { ListOrdered, Plus, GripVertical, Clock } from "lucide-react";
+import { Clock, GripVertical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const items = [
-  { id: 1, title: "Spotify — Now Playing", source: "Spotify", duration: "Until stopped" },
+  {
+    id: 1,
+    title: "Spotify — Now Playing",
+    source: "Spotify",
+    duration: "Until stopped",
+  },
   { id: 2, title: "Weather Overview", source: "Weather", duration: "10 min" },
   { id: 3, title: "Clock — Full Screen", source: "Clock", duration: "5 min" },
   { id: 4, title: "System Stats", source: "System", duration: "3 min" },
@@ -14,7 +19,9 @@ export default function QueuePage() {
       <div className="flex w-full items-center justify-between border-b border-border px-8 py-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Queue</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Manage what displays next on your screen.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Manage what displays next on your screen.
+          </p>
         </div>
         <Button size="sm">
           <Plus className="size-3.5" />
@@ -30,7 +37,9 @@ export default function QueuePage() {
               className="flex items-center gap-4 border-b border-border px-4 py-3.5 last:border-0"
             >
               <GripVertical className="size-4 shrink-0 text-muted-foreground/30 cursor-grab" />
-              <span className="w-5 text-center text-xs font-mono text-muted-foreground/40">{i + 1}</span>
+              <span className="w-5 text-center text-xs font-mono text-muted-foreground/40">
+                {i + 1}
+              </span>
               <div className="flex flex-1 flex-col gap-0.5">
                 <p className="text-sm font-medium">{item.title}</p>
                 <p className="text-xs text-muted-foreground">{item.source}</p>

@@ -1,11 +1,31 @@
-import { Cloud, Clock, Newspaper, Thermometer, Plug } from "lucide-react";
+import { Clock, Cloud, Newspaper, Plug, Thermometer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const integrations = [
-  { name: "Weather", desc: "Show live weather and forecasts.", icon: Cloud, connected: true },
-  { name: "Clock", desc: "Display current time and date.", icon: Clock, connected: true },
-  { name: "News", desc: "Scroll headlines from RSS feeds.", icon: Newspaper, connected: false },
-  { name: "System Stats", desc: "CPU, RAM, and temperature readouts.", icon: Thermometer, connected: true },
+  {
+    name: "Weather",
+    desc: "Show live weather and forecasts.",
+    icon: Cloud,
+    connected: true,
+  },
+  {
+    name: "Clock",
+    desc: "Display current time and date.",
+    icon: Clock,
+    connected: true,
+  },
+  {
+    name: "News",
+    desc: "Scroll headlines from RSS feeds.",
+    icon: Newspaper,
+    connected: false,
+  },
+  {
+    name: "System Stats",
+    desc: "CPU, RAM, and temperature readouts.",
+    icon: Thermometer,
+    connected: true,
+  },
 ];
 
 export default function IntegrationsPage() {
@@ -14,7 +34,9 @@ export default function IntegrationsPage() {
       <div className="flex w-full items-center justify-between border-b border-border px-8 py-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Integrations</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Connect external data sources to your display.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Connect external data sources to your display.
+          </p>
         </div>
         <Button size="sm">
           <Plug className="size-3.5" />
@@ -27,14 +49,19 @@ export default function IntegrationsPage() {
           {integrations.map((item) => {
             const Icon = item.icon;
             return (
-              <div key={item.name} className="flex items-start gap-4 rounded-lg border border-border p-5">
+              <div
+                key={item.name}
+                className="flex items-start gap-4 rounded-lg border border-border p-5"
+              >
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
                   <Icon className="size-4 text-muted-foreground" />
                 </div>
                 <div className="flex flex-1 flex-col gap-1">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">{item.name}</p>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${item.connected ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}>
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${item.connected ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}
+                    >
                       {item.connected ? "On" : "Off"}
                     </span>
                   </div>

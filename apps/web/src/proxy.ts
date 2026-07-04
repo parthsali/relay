@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 // Routes that do NOT require authentication
 const PUBLIC = ["/login", "/auth/callback"];

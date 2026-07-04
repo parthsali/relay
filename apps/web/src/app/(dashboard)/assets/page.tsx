@@ -1,4 +1,4 @@
-import { FolderOpen, Plus, ImageIcon, FileVideo } from "lucide-react";
+import { FileVideo, ImageIcon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const assets = [
@@ -15,7 +15,9 @@ export default function AssetsPage() {
       <div className="flex w-full items-center justify-between border-b border-border px-8 py-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Assets</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Images and media files used in your scenes.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Images and media files used in your scenes.
+          </p>
         </div>
         <Button size="sm">
           <Plus className="size-3.5" />
@@ -28,13 +30,20 @@ export default function AssetsPage() {
           {assets.map((a, i) => {
             const Icon = a.type === "video" ? FileVideo : ImageIcon;
             return (
-              <div key={i} className="flex items-center gap-4 border-b border-border px-4 py-3.5 last:border-0">
+              <div
+                key={i}
+                className="flex items-center gap-4 border-b border-border px-4 py-3.5 last:border-0"
+              >
                 <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
                   <Icon className="size-4 text-muted-foreground" />
                 </div>
                 <p className="flex-1 text-sm font-medium font-mono">{a.name}</p>
-                <span className="text-xs text-muted-foreground uppercase tracking-wide">{a.type}</span>
-                <span className="w-20 text-right text-xs text-muted-foreground">{a.size}</span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wide">
+                  {a.type}
+                </span>
+                <span className="w-20 text-right text-xs text-muted-foreground">
+                  {a.size}
+                </span>
               </div>
             );
           })}

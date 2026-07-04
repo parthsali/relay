@@ -88,7 +88,9 @@ func (h *Handler) State(c *gin.Context) {
 }
 
 type commandRequest struct {
-	Type string `json:"type" binding:"required"`
+	Type       string `json:"type"       binding:"required"`
+	Mode       string `json:"mode"`       // for display.set_mode
+	Brightness *int   `json:"brightness"` // for display.set_brightness
 }
 
 // Command forwards a typed command to the device agent via the hub.
@@ -100,7 +102,7 @@ func (h *Handler) Command(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	if err := h.svc.SendCommand(deviceID, req.Type); err != nil {
+	if err := h.svc.SendCommand(deviceID, req.Type, req.Mode, req.Brightness); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}

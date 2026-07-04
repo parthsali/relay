@@ -5,9 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/parthsali/relay/apps/api/internal/hub"
 	"github.com/parthsali/relay/apps/api/internal/store"
 )
@@ -22,10 +24,31 @@ func NewService(queries *store.Queries, h *hub.Hub) *Service {
 	return &Service{queries: queries, hub: h}
 }
 
+// SafeDevice is a JSON-safe view of store.Device that omits secret_hash.
+type SafeDevice struct {
+	ID           string             `json:"id"`
+	UserID       string             `json:"user_id"`
+	Name         string             `json:"name"`
+	AgentVersion *string            `json:"agent_version"`
+	LastSeenAt   pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt    time.Time          `json:"created_at"`
+}
+
+func safeDevice(d store.Device) SafeDevice {
+	return SafeDevice{
+		ID:           d.ID,
+		UserID:       d.UserID,
+		Name:         d.Name,
+		AgentVersion: d.AgentVersion,
+		LastSeenAt:   d.LastSeenAt,
+		CreatedAt:    d.CreatedAt,
+	}
+}
+
 // RegisterResult holds the plain secret shown once on registration.
 type RegisterResult struct {
-	Device      store.Device `json:"device"`
-	PlainSecret string       `json:"secret"` // shown once — not stored
+	Device      SafeDevice `json:"device"`
+	PlainSecret string     `json:"secret"` // shown once — not stored
 }
 
 // Register creates a new device for the user. Returns the device + one-time plain secret.
@@ -46,7 +69,7 @@ func (s *Service) Register(ctx context.Context, userID, name string) (*RegisterR
 	if err != nil {
 		return nil, fmt.Errorf("create device: %w", err)
 	}
-	return &RegisterResult{Device: device, PlainSecret: plain}, nil
+	return &RegisterResult{Device: safeDevice(device), PlainSecret: plain}, nil
 }
 
 // List returns all devices owned by userID, augmenting each with online status from hub.
@@ -58,8 +81,8 @@ func (s *Service) List(ctx context.Context, userID string) ([]DeviceWithStatus, 
 	out := make([]DeviceWithStatus, len(devices))
 	for i, d := range devices {
 		out[i] = DeviceWithStatus{
-			Device:   d,
-			IsOnline: s.hub.DeviceOnline(d.ID),
+			SafeDevice: safeDevice(d),
+			IsOnline:   s.hub.DeviceOnline(d.ID),
 		}
 	}
 	return out, nil
@@ -78,25 +101,34 @@ func (s *Service) GetState(ctx context.Context, deviceID string) (store.DeviceSt
 	return s.queries.GetDeviceState(ctx, deviceID)
 }
 
-// DeviceWithStatus combines a device record with its live online status.
+// DeviceWithStatus combines a safe device view with its live online status.
 type DeviceWithStatus struct {
-	store.Device
+	SafeDevice
 	IsOnline bool `json:"is_online"`
 }
 
-// SendCommand forwards a simple typed command to the device agent.
-// For commands that carry no payload (agent.restart), the hub message has an empty data field.
-func (s *Service) SendCommand(deviceID, msgType string) error {
-	allowed := map[string]bool{
-		hub.TypeAgentRestart:         true,
-		hub.TypeDisplaySetMode:       true,
-		hub.TypeDisplaySetBrightness: true,
-		hub.TypeSpotifySync:          true,
-	}
-	if !allowed[msgType] {
+// SendCommand forwards a typed command to the device agent with the appropriate payload.
+func (s *Service) SendCommand(deviceID, msgType, mode string, brightness *int) error {
+	var data any
+	switch msgType {
+	case hub.TypeAgentRestart, hub.TypeAgentUpdate:
+		// no payload needed
+	case hub.TypeDisplaySetMode:
+		if mode == "" {
+			return fmt.Errorf("mode is required for display.set_mode")
+		}
+		data = hub.DisplaySetModePayload{Mode: mode}
+	case hub.TypeDisplaySetBrightness:
+		if brightness == nil {
+			return fmt.Errorf("brightness is required for display.set_brightness")
+		}
+		data = hub.DisplaySetBrightnessPayload{Brightness: *brightness}
+	case hub.TypeSpotifySync:
+		// sync payload is built from stored tokens by the caller; send empty trigger
+	default:
 		return fmt.Errorf("unknown command type: %s", msgType)
 	}
-	s.hub.SendToDevice(deviceID, hub.Msg{Type: msgType})
+	s.hub.SendToDevice(deviceID, hub.Msg{Type: msgType, Data: data})
 	return nil
 }
 

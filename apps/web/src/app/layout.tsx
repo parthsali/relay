@@ -25,11 +25,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body
-        className="min-h-full flex flex-col bg-background text-foreground antialiased"
-      >
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable}`}
+    >
+      <body className="min-h-full flex flex-col bg-background text-foreground antialiased">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem={false}
+        >
           <TooltipProvider>{children}</TooltipProvider>
         </ThemeProvider>
       </body>

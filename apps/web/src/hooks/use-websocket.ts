@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type WsMessage = {
   type: string;
@@ -44,7 +44,14 @@ export function useWebSocket({ onMessage, enabled = true }: Options) {
   const unmounted = useRef(false);
   // Keep onMessage stable without requiring callers to memoize it.
   const onMessageRef = useRef(onMessage);
-  useEffect(() => { onMessageRef.current = onMessage; });
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  });
+
+  // Use a ref so connect and scheduleReconnect can reference each other
+  // without circular useCallback dependencies.
+  const connectRef = useRef<() => void>(() => {});
+  const scheduleReconnectRef = useRef<() => void>(() => {});
 
   const connect = useCallback(() => {
     if (unmounted.current || !enabled) return;
@@ -71,7 +78,7 @@ export function useWebSocket({ onMessage, enabled = true }: Options) {
 
     ws.onclose = () => {
       setConnected(false);
-      if (!unmounted.current && enabled) scheduleReconnect();
+      if (!unmounted.current && enabled) scheduleReconnectRef.current();
     };
 
     ws.onerror = () => {
@@ -81,10 +88,17 @@ export function useWebSocket({ onMessage, enabled = true }: Options) {
 
   const scheduleReconnect = useCallback(() => {
     retryTimer.current = setTimeout(() => {
-      reconnectDelay.current = Math.min(reconnectDelay.current * 2, MAX_RECONNECT_MS);
-      connect();
+      reconnectDelay.current = Math.min(
+        reconnectDelay.current * 2,
+        MAX_RECONNECT_MS,
+      );
+      connectRef.current();
     }, reconnectDelay.current);
-  }, [connect]);
+  }, []);
+
+  // Keep refs in sync with latest callbacks.
+  connectRef.current = connect;
+  scheduleReconnectRef.current = scheduleReconnect;
 
   useEffect(() => {
     unmounted.current = false;

@@ -1,12 +1,23 @@
 "use client";
 
+import {
+  Activity,
+  ArrowUpCircle,
+  CalendarDays,
+  Code2,
+  Cpu,
+  FolderOpen,
+  LayoutDashboard,
+  ListOrdered,
+  Monitor,
+  Music2,
+  Plug,
+  Settings,
+  Terminal,
+  Zap,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard, Monitor, ListOrdered, CalendarDays,
-  FolderOpen, Music2, Plug, Cpu, Activity,
-  Terminal, ArrowUpCircle, Code2, Settings, Zap,
-} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const groups = [
@@ -61,7 +72,9 @@ export function Sidebar() {
             )}
             {group.items.map((item) => {
               const active =
-                item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href);
               const Icon = item.icon;
               return (
                 <Link
@@ -71,10 +84,15 @@ export function Sidebar() {
                     "flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13.5px] transition-colors duration-100",
                     active
                       ? "bg-accent text-foreground font-medium"
-                      : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                      : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                   )}
                 >
-                  <Icon className={cn("size-4 shrink-0", active ? "opacity-100" : "opacity-50")} />
+                  <Icon
+                    className={cn(
+                      "size-4 shrink-0",
+                      active ? "opacity-100" : "opacity-50",
+                    )}
+                  />
                   {item.label}
                 </Link>
               );
