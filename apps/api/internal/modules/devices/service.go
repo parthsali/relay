@@ -108,11 +108,16 @@ type DeviceWithStatus struct {
 }
 
 // SendCommand forwards a typed command to the device agent with the appropriate payload.
-func (s *Service) SendCommand(deviceID, msgType, mode string, brightness *int) error {
+func (s *Service) SendCommand(deviceID, msgType, mode string, brightness *int, version, url, sha256 string) error {
 	var data any
 	switch msgType {
-	case hub.TypeAgentRestart, hub.TypeAgentUpdate:
+	case hub.TypeAgentRestart:
 		// no payload needed
+	case hub.TypeAgentUpdate:
+		if url == "" || sha256 == "" {
+			return fmt.Errorf("url and sha256 are required for agent.update")
+		}
+		data = hub.AgentUpdatePayload{Version: version, URL: url, SHA256: sha256}
 	case hub.TypeDisplaySetMode:
 		if mode == "" {
 			return fmt.Errorf("mode is required for display.set_mode")

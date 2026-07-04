@@ -98,6 +98,13 @@ type DisplaySetBrightnessPayload struct {
 	Brightness int `json:"brightness"`
 }
 
+// AgentUpdatePayload triggers an OTA update on the agent.
+type AgentUpdatePayload struct {
+	Version string `json:"version"`
+	URL     string `json:"url"`
+	SHA256  string `json:"sha256"`
+}
+
 // ── Conn ──────────────────────────────────────────────────────────────────────
 
 // Conn wraps a WebSocket with a buffered send channel.

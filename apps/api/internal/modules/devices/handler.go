@@ -91,6 +91,10 @@ type commandRequest struct {
 	Type       string `json:"type"       binding:"required"`
 	Mode       string `json:"mode"`       // for display.set_mode
 	Brightness *int   `json:"brightness"` // for display.set_brightness
+	// agent.update fields
+	Version string `json:"version"`
+	URL     string `json:"url"`
+	SHA256  string `json:"sha256"`
 }
 
 // Command forwards a typed command to the device agent via the hub.
@@ -102,7 +106,7 @@ func (h *Handler) Command(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	if err := h.svc.SendCommand(deviceID, req.Type, req.Mode, req.Brightness); err != nil {
+	if err := h.svc.SendCommand(deviceID, req.Type, req.Mode, req.Brightness, req.Version, req.URL, req.SHA256); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}

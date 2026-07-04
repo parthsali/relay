@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 // Routes that do NOT require authentication
 const PUBLIC = ["/login", "/auth/callback"];
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("relay_token")?.value;
 
@@ -24,5 +24,5 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   // Run on every route except Next.js internals and static assets
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon).*)"],
 };

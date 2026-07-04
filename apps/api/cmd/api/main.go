@@ -110,6 +110,10 @@ func main() {
 		devicesHandler.RegisterRoutes(protected.Group("/devices"))
 	}
 
+	if cfg.SpotifyClientID == "" || cfg.SpotifyClientSecret == "" {
+		log.Println("WARNING: SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET not set — Spotify integration disabled")
+	}
+
 	log.Printf("starting server on :%s [%s]", cfg.Port, cfg.Environment)
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatalf("server: %v", err)
