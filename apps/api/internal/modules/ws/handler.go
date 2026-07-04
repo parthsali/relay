@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -9,8 +10,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/parthsali/relay/apps/api/internal/hub"
 	spotifyModule "github.com/parthsali/relay/apps/api/internal/modules/spotify"
+	"github.com/parthsali/relay/apps/api/internal/response"
+	"github.com/parthsali/relay/apps/api/internal/store"
 )
 
 const (
@@ -20,41 +25,59 @@ const (
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin:     func(r *http.Request) bool { return true }, // CORS handled by gin middleware
+	ReadBufferSize:  4096,
+	WriteBufferSize: 4096,
+	CheckOrigin:     func(r *http.Request) bool { return true },
+}
+
+// incomingMsg is the envelope the agent sends to the backend.
+type incomingMsg struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data,omitempty"`
+}
+
+// telemetryData matches what the agent sends in agent.telemetry messages.
+type telemetryData struct {
+	AgentVersion string  `json:"agent_version"`
+	DisplayMode  string  `json:"display_mode"`
+	Brightness   int32   `json:"brightness"`
+	CPUPercent   float64 `json:"cpu_percent"`
+	MemMB        float64 `json:"mem_mb"`
+	TempC        float64 `json:"temp_c"`
+	UptimeS      int64   `json:"uptime_s"`
+	WiFiDBM      int32   `json:"wifi_dbm"`
+	IPAddress    string  `json:"ip_address"`
 }
 
 // Handler manages WebSocket upgrades and connection lifecycle.
 type Handler struct {
 	hub            *hub.Hub
+	queries        *store.Queries
 	jwtSecret      string
-	piSecret       string
 	spotifyService *spotifyModule.Service
 }
 
-func NewHandler(h *hub.Hub, jwtSecret, piSecret string, svc *spotifyModule.Service) *Handler {
-	return &Handler{hub: h, jwtSecret: jwtSecret, piSecret: piSecret, spotifyService: svc}
+func NewHandler(h *hub.Hub, queries *store.Queries, jwtSecret string, svc *spotifyModule.Service) *Handler {
+	return &Handler{hub: h, queries: queries, jwtSecret: jwtSecret, spotifyService: svc}
 }
 
 // RegisterRoutes mounts the single WebSocket endpoint.
 //
 //	GET /ws?type=web&token=<jwt>
-//	GET /ws?type=pi&secret=<pi-secret>
+//	GET /ws?type=agent&device_id=<uuid>&secret=<plain>
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/ws", h.Handle)
 }
 
 // Handle upgrades the HTTP connection and dispatches based on client type.
 func (h *Handler) Handle(c *gin.Context) {
-	clientType := c.Query("type")
-	switch clientType {
+	switch c.Query("type") {
 	case "web":
 		h.handleWeb(c)
-	case "pi":
-		h.handlePi(c)
+	case "agent":
+		h.handleAgent(c)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "type must be 'web' or 'pi'"})
+		response.BadRequest(c, "type must be 'web' or 'agent'")
 	}
 }
 
@@ -62,21 +85,20 @@ func (h *Handler) Handle(c *gin.Context) {
 func (h *Handler) handleWeb(c *gin.Context) {
 	tokenStr := c.Query("token")
 	if tokenStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token required"})
+		response.Unauthorized(c, "token required")
 		return
 	}
 
 	claims := jwt.MapClaims{}
-	_, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
+	if _, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
 		return []byte(h.jwtSecret), nil
-	})
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+	}); err != nil {
+		response.Unauthorized(c, "invalid token")
 		return
 	}
 	userID, _ := claims["user_id"].(string)
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token missing user_id"})
+		response.Unauthorized(c, "token missing user_id")
 		return
 	}
 
@@ -89,54 +111,91 @@ func (h *Handler) handleWeb(c *gin.Context) {
 	conn := h.hub.SetWeb(ws, userID)
 	log.Printf("ws: web connected (user=%s)", userID)
 
-	// Notify Pi that web is connected (if Pi is online)
-	h.hub.SendToPi(hub.Msg{Type: "web.connected"})
-
-	// Context tied to this connection's lifetime
 	ctx, cancel := context.WithCancel(context.Background())
-
 	go h.writePump(conn, cancel)
 	go startSpotifyWorker(ctx, h.hub, h.spotifyService, userID)
 
-	h.readPump(conn, func() {
+	h.readPumpWeb(conn, func() {
 		cancel()
 		h.hub.RemoveWeb(conn)
-		h.hub.SendToPi(hub.Msg{Type: "web.disconnected"})
 		log.Printf("ws: web disconnected (user=%s)", userID)
 	})
 }
 
-// handlePi authenticates via shared secret and registers the Pi connection.
-func (h *Handler) handlePi(c *gin.Context) {
-	if c.Query("secret") != h.piSecret {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid pi secret"})
+// handleAgent authenticates via device_id + plain secret (bcrypt-checked against DB),
+// then manages the agent connection lifecycle and telemetry ingestion.
+func (h *Handler) handleAgent(c *gin.Context) {
+	deviceID := c.Query("device_id")
+	secret := c.Query("secret")
+	if deviceID == "" || secret == "" {
+		response.BadRequest(c, "device_id and secret required")
+		return
+	}
+
+	ctx := c.Request.Context()
+	device, err := h.queries.GetDevice(ctx, deviceID)
+	if err != nil {
+		response.Unauthorized(c, "device not found")
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(device.SecretHash), []byte(secret)); err != nil {
+		response.Unauthorized(c, "invalid secret")
 		return
 	}
 
 	ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("ws: pi upgrade error: %v", err)
+		log.Printf("ws: agent upgrade error: %v", err)
 		return
 	}
 
-	conn := h.hub.SetPi(ws)
-	log.Printf("ws: pi connected")
-	h.hub.SendToWeb(hub.Msg{Type: hub.TypePiConnected})
+	dc := h.hub.SetDevice(ws, deviceID, device.UserID)
+	log.Printf("ws: agent connected (device=%s user=%s)", deviceID, device.UserID)
 
-	_, cancel := context.WithCancel(context.Background())
+	// Mark online
+	_ = h.queries.UpsertDeviceState(context.Background(), store.UpsertDeviceStateParams{
+		DeviceID: deviceID, IsOnline: true,
+		DisplayMode: "clock", Brightness: 80,
+	})
+	h.hub.SendToWeb(hub.Msg{
+		Type: hub.TypeDeviceOnline,
+		Data: hub.DeviceOnlinePayload{DeviceID: deviceID, Name: device.Name},
+	})
 
-	go h.writePump(conn, cancel)
+	// Sync Spotify tokens if the user has connected Spotify
+	h.syncSpotify(context.Background(), dc)
 
-	h.readPump(conn, func() {
+	connCtx, cancel := context.WithCancel(context.Background())
+	go h.writePump(dc.Conn, cancel)
+
+	h.readPumpAgent(dc, connCtx, func() {
 		cancel()
-		h.hub.RemovePi(conn)
-		h.hub.SendToWeb(hub.Msg{Type: hub.TypePiDisconnected})
-		log.Printf("ws: pi disconnected")
+		h.hub.RemoveDevice(dc)
+		_ = h.queries.SetDeviceOffline(context.Background(), deviceID)
+		h.hub.SendToWeb(hub.Msg{
+			Type: hub.TypeDeviceOffline,
+			Data: hub.DeviceOfflinePayload{DeviceID: deviceID},
+		})
+		log.Printf("ws: agent disconnected (device=%s)", deviceID)
 	})
 }
 
-// writePump drains the send channel and writes frames to the WebSocket.
-// It also sends protocol-level pings to keep the connection alive.
+// syncSpotify pushes Spotify tokens to the agent if available.
+func (h *Handler) syncSpotify(ctx context.Context, dc *hub.DeviceConn) {
+	if !h.spotifyService.IsConnected(ctx, dc.UserID) {
+		return
+	}
+	accessToken, err := h.spotifyService.GetValidToken(ctx, dc.UserID)
+	if err != nil {
+		return
+	}
+	dc.Enqueue(hub.Msg{
+		Type: hub.TypeSpotifySync,
+		Data: hub.SpotifySyncPayload{AccessToken: accessToken},
+	})
+}
+
+// writePump drains the send channel and sends protocol-level pings.
 func (h *Handler) writePump(c *hub.Conn, cancel context.CancelFunc) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
@@ -156,7 +215,6 @@ func (h *Handler) writePump(c *hub.Conn, cancel context.CancelFunc) {
 			if err := c.WS.WriteMessage(websocket.TextMessage, msg); err != nil {
 				return
 			}
-
 		case <-ticker.C:
 			c.WS.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.WS.WriteMessage(websocket.PingMessage, nil); err != nil {
@@ -166,10 +224,8 @@ func (h *Handler) writePump(c *hub.Conn, cancel context.CancelFunc) {
 	}
 }
 
-// readPump blocks reading client messages. It resets the read deadline on
-// every pong so dead connections are detected within pongWait seconds.
-// onClose is called exactly once when the loop exits.
-func (h *Handler) readPump(c *hub.Conn, onClose func()) {
+// readPumpWeb discards messages from the web client (it only listens, never sends).
+func (h *Handler) readPumpWeb(c *hub.Conn, onClose func()) {
 	defer onClose()
 	c.WS.SetReadLimit(512)
 	c.WS.SetReadDeadline(time.Now().Add(pongWait))
@@ -178,9 +234,84 @@ func (h *Handler) readPump(c *hub.Conn, onClose func()) {
 		return nil
 	})
 	for {
-		_, _, err := c.WS.ReadMessage()
-		if err != nil {
-			return // client closed or timed out
+		if _, _, err := c.WS.ReadMessage(); err != nil {
+			return
 		}
+	}
+}
+
+// readPumpAgent processes structured messages from the Pi agent.
+func (h *Handler) readPumpAgent(dc *hub.DeviceConn, ctx context.Context, onClose func()) {
+	defer onClose()
+	dc.WS.SetReadLimit(4096)
+	dc.WS.SetReadDeadline(time.Now().Add(pongWait))
+	dc.WS.SetPongHandler(func(string) error {
+		dc.WS.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+
+	for {
+		_, raw, err := dc.WS.ReadMessage()
+		if err != nil {
+			return
+		}
+		var msg incomingMsg
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			continue
+		}
+		h.handleAgentMessage(ctx, dc, msg)
+	}
+}
+
+func (h *Handler) handleAgentMessage(ctx context.Context, dc *hub.DeviceConn, msg incomingMsg) {
+	switch msg.Type {
+	case "agent.telemetry":
+		var td telemetryData
+		if err := json.Unmarshal(msg.Data, &td); err != nil {
+			return
+		}
+		_ = h.queries.UpsertDeviceState(ctx, store.UpsertDeviceStateParams{
+			DeviceID:    dc.DeviceID,
+			IsOnline:    true,
+			DisplayMode: td.DisplayMode,
+			Brightness:  td.Brightness,
+			CpuPercent:  td.CPUPercent,
+			MemMb:       td.MemMB,
+			TempC:       td.TempC,
+			UptimeS:     td.UptimeS,
+			WifiDbm:     td.WiFiDBM,
+			IpAddress:   td.IPAddress,
+		})
+		if td.AgentVersion != "" {
+			v := td.AgentVersion
+			_ = h.queries.UpdateDeviceLastSeen(ctx, store.UpdateDeviceLastSeenParams{
+				ID: dc.DeviceID, AgentVersion: &v,
+			})
+		}
+		// Forward telemetry to web dashboard
+		h.hub.SendToWeb(hub.Msg{
+			Type: hub.TypeDeviceTelemetry,
+			Data: hub.TelemetryPayload{
+				DeviceID:     dc.DeviceID,
+				AgentVersion: td.AgentVersion,
+				DisplayMode:  td.DisplayMode,
+				Brightness:   td.Brightness,
+				CPUPercent:   td.CPUPercent,
+				MemMB:        td.MemMB,
+				TempC:        td.TempC,
+				UptimeS:      td.UptimeS,
+				WiFiDBM:      td.WiFiDBM,
+				IPAddress:    td.IPAddress,
+			},
+		})
+
+	case "agent.now_playing":
+		h.hub.SendToWeb(hub.Msg{
+			Type: hub.TypeDeviceNowPlaying,
+			Data: hub.NowPlayingPayload{DeviceID: dc.DeviceID, Track: msg.Data},
+		})
+
+	case "ping":
+		dc.Enqueue(hub.Msg{Type: hub.TypePong})
 	}
 }

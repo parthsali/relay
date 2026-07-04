@@ -16,6 +16,7 @@ import (
 	"github.com/parthsali/relay/apps/api/internal/middleware"
 	"github.com/parthsali/relay/apps/api/internal/migrator"
 	authModule "github.com/parthsali/relay/apps/api/internal/modules/auth"
+	devicesModule "github.com/parthsali/relay/apps/api/internal/modules/devices"
 	spotifyModule "github.com/parthsali/relay/apps/api/internal/modules/spotify"
 	usersModule "github.com/parthsali/relay/apps/api/internal/modules/users"
 	wsModule "github.com/parthsali/relay/apps/api/internal/modules/ws"
@@ -65,9 +66,10 @@ func main() {
 	spotifySvc := spotifyModule.NewService(queries, cfg.SpotifyClientID, cfg.SpotifyClientSecret, cfg.SpotifyRedirectURL)
 	spotifyHandler := spotifyModule.NewHandler(spotifySvc, cfg.FrontendURL)
 
-	// --- WebSocket hub (in-memory, max 2 connections: web + pi) ---
+	// --- WebSocket hub (in-memory) ---
 	wsHub := hub.New()
-	wsHandler := wsModule.NewHandler(wsHub, cfg.JWTSecret, cfg.PISecret, spotifySvc)
+	wsHandler := wsModule.NewHandler(wsHub, queries, cfg.JWTSecret, spotifySvc)
+	devicesHandler := devicesModule.NewHandler(devicesModule.NewService(queries, wsHub))
 
 	// --- Router ---
 	r := gin.Default()
@@ -105,6 +107,7 @@ func main() {
 	{
 		userHandler.RegisterRoutes(protected.Group("/users"))
 		spotifyHandler.RegisterProtectedRoutes(protected.Group("/spotify"))
+		devicesHandler.RegisterRoutes(protected.Group("/devices"))
 	}
 
 	log.Printf("starting server on :%s [%s]", cfg.Port, cfg.Environment)

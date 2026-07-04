@@ -1,8 +1,7 @@
 // Package hub manages in-memory WebSocket connections.
-// At most two connections exist simultaneously: one from the web dashboard
-// and one from the Pi agent. All fields are protected by a mutex.
-// Writes to each connection are serialised through a buffered send channel
-// so goroutines never write to the same *websocket.Conn concurrently.
+// One web dashboard connection is tracked alongside N device (Pi) connections.
+// All fields are protected by a mutex. Writes are serialised through per-Conn
+// buffered send channels so goroutines never write to the same ws.Conn concurrently.
 package hub
 
 import (
@@ -12,31 +11,97 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// ── Message ───────────────────────────────────────────────────────────────────
+// ── Message types ─────────────────────────────────────────────────────────────
 
-// Msg is the canonical JSON envelope sent over every WebSocket connection.
 type Msg struct {
 	Type string `json:"type"`
 	Data any    `json:"data,omitempty"`
 }
 
-// Well-known message type constants.
 const (
+	// Spotify (backend → web)
 	TypeSpotifyNowPlaying = "spotify.now_playing"
 	TypeSpotifyIdle       = "spotify.idle"
 	TypeSpotifyError      = "spotify.error"
-	TypePiConnected       = "pi.connected"
-	TypePiDisconnected    = "pi.disconnected"
-	TypePing              = "ping"
-	TypePong              = "pong"
-	TypeError             = "error"
+
+	// Device lifecycle (backend → web)
+	TypeDeviceOnline     = "device.online"
+	TypeDeviceOffline    = "device.offline"
+	TypeDeviceTelemetry  = "device.telemetry"
+	TypeDeviceNowPlaying = "device.now_playing"
+
+	// Commands (backend → agent)
+	TypeDisplaySetMode       = "display.set_mode"
+	TypeDisplaySetBrightness = "display.set_brightness"
+	TypeSpotifySync          = "spotify.sync"
+	TypeAgentRestart         = "agent.restart"
+	TypeAgentUpdate          = "agent.update"
+
+	TypePing  = "ping"
+	TypePong  = "pong"
+	TypeError = "error"
 )
+
+// ── Typed payloads ────────────────────────────────────────────────────────────
+// Use these structs when calling Enqueue/SendTo* so callers are not dealing
+// with ad-hoc map[string]any. The JSON field names are the canonical protocol.
+
+// ErrorPayload is carried in Msg.Data for Type == TypeError.
+type ErrorPayload struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// DeviceOnlinePayload is sent to web when an agent connects.
+type DeviceOnlinePayload struct {
+	DeviceID string `json:"device_id"`
+	Name     string `json:"name"`
+}
+
+// DeviceOfflinePayload is sent to web when an agent disconnects.
+type DeviceOfflinePayload struct {
+	DeviceID string `json:"device_id"`
+}
+
+// TelemetryPayload is forwarded to web from agent.telemetry messages.
+type TelemetryPayload struct {
+	DeviceID     string  `json:"device_id"`
+	AgentVersion string  `json:"agent_version,omitempty"`
+	DisplayMode  string  `json:"display_mode"`
+	Brightness   int32   `json:"brightness"`
+	CPUPercent   float64 `json:"cpu_percent"`
+	MemMB        float64 `json:"mem_mb"`
+	TempC        float64 `json:"temp_c"`
+	UptimeS      int64   `json:"uptime_s"`
+	WiFiDBM      int32   `json:"wifi_dbm"`
+	IPAddress    string  `json:"ip_address"`
+}
+
+// NowPlayingPayload is forwarded to web from agent.now_playing messages.
+type NowPlayingPayload struct {
+	DeviceID string          `json:"device_id"`
+	Track    json.RawMessage `json:"track"`
+}
+
+// SpotifySyncPayload is sent to the agent to sync Spotify credentials.
+type SpotifySyncPayload struct {
+	AccessToken string `json:"access_token"`
+}
+
+// DisplaySetModePayload is sent to an agent to change its display mode.
+type DisplaySetModePayload struct {
+	Mode string `json:"mode"`
+}
+
+// DisplaySetBrightnessPayload is sent to an agent to change brightness.
+type DisplaySetBrightnessPayload struct {
+	Brightness int `json:"brightness"`
+}
 
 // ── Conn ──────────────────────────────────────────────────────────────────────
 
-// Conn wraps a single WebSocket connection with a buffered send channel.
-// Only the writePump goroutine may call ws.WriteMessage — all other callers
-// push bytes to Send and the pump flushes them serially.
+// Conn wraps a WebSocket with a buffered send channel.
+// Only the writePump goroutine may call WS.WriteMessage.
 type Conn struct {
 	WS   *websocket.Conn
 	Send chan []byte
@@ -53,29 +118,37 @@ func (c *Conn) Enqueue(m Msg) {
 	}
 	select {
 	case c.Send <- b:
-	default: // drop silently if consumer is slow
+	default: // slow consumer — drop frame
 	}
+}
+
+// ── DeviceConn ────────────────────────────────────────────────────────────────
+
+// DeviceConn pairs a Conn with its device and user identity.
+type DeviceConn struct {
+	*Conn
+	DeviceID string
+	UserID   string
 }
 
 // ── Hub ───────────────────────────────────────────────────────────────────────
 
-// Hub holds at most one web and one pi connection in memory.
 type Hub struct {
-	mu     sync.RWMutex
-	web    *Conn
-	webUID string // user_id from the web client's JWT
-	pi     *Conn
+	mu      sync.RWMutex
+	web     *Conn
+	webUID  string
+	devices map[string]*DeviceConn // keyed by device_id
 }
 
-func New() *Hub { return &Hub{} }
+func New() *Hub { return &Hub{devices: make(map[string]*DeviceConn)} }
 
-// SetWeb registers the web dashboard connection, replacing any previous one.
-// Returns the new Conn so the caller can start pump goroutines.
+// ── Web client ────────────────────────────────────────────────────────────────
+
 func (h *Hub) SetWeb(ws *websocket.Conn, userID string) *Conn {
 	c := newConn(ws)
 	h.mu.Lock()
 	if h.web != nil {
-		close(h.web.Send) // signal old write pump to exit
+		close(h.web.Send)
 	}
 	h.web = c
 	h.webUID = userID
@@ -83,7 +156,6 @@ func (h *Hub) SetWeb(ws *websocket.Conn, userID string) *Conn {
 	return c
 }
 
-// RemoveWeb unregisters the web connection if it matches c.
 func (h *Hub) RemoveWeb(c *Conn) {
 	h.mu.Lock()
 	if h.web == c {
@@ -93,28 +165,6 @@ func (h *Hub) RemoveWeb(c *Conn) {
 	h.mu.Unlock()
 }
 
-// SetPi registers the Pi agent connection, replacing any previous one.
-func (h *Hub) SetPi(ws *websocket.Conn) *Conn {
-	c := newConn(ws)
-	h.mu.Lock()
-	if h.pi != nil {
-		close(h.pi.Send)
-	}
-	h.pi = c
-	h.mu.Unlock()
-	return c
-}
-
-// RemovePi unregisters the Pi connection if it matches c.
-func (h *Hub) RemovePi(c *Conn) {
-	h.mu.Lock()
-	if h.pi == c {
-		h.pi = nil
-	}
-	h.mu.Unlock()
-}
-
-// SendToWeb pushes a message to the web client (no-op if not connected).
 func (h *Hub) SendToWeb(m Msg) {
 	h.mu.RLock()
 	c := h.web
@@ -124,33 +174,58 @@ func (h *Hub) SendToWeb(m Msg) {
 	}
 }
 
-// SendToPi pushes a message to the Pi agent (no-op if not connected).
-func (h *Hub) SendToPi(m Msg) {
-	h.mu.RLock()
-	c := h.pi
-	h.mu.RUnlock()
-	if c != nil {
-		c.Enqueue(m)
-	}
-}
-
-// WebUserID returns the user_id of the currently connected web client.
 func (h *Hub) WebUserID() string {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.webUID
 }
 
-// WebConnected reports whether a web dashboard connection is active.
-func (h *Hub) WebConnected() bool {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return h.web != nil
+// ── Device (Pi agent) connections ────────────────────────────────────────────
+
+func (h *Hub) SetDevice(ws *websocket.Conn, deviceID, userID string) *DeviceConn {
+	dc := &DeviceConn{Conn: newConn(ws), DeviceID: deviceID, UserID: userID}
+	h.mu.Lock()
+	if old, ok := h.devices[deviceID]; ok {
+		close(old.Send) // evict stale connection
+	}
+	h.devices[deviceID] = dc
+	h.mu.Unlock()
+	return dc
 }
 
-// PiConnected reports whether a Pi agent connection is active.
-func (h *Hub) PiConnected() bool {
+func (h *Hub) RemoveDevice(dc *DeviceConn) {
+	h.mu.Lock()
+	if cur, ok := h.devices[dc.DeviceID]; ok && cur == dc {
+		delete(h.devices, dc.DeviceID)
+	}
+	h.mu.Unlock()
+}
+
+// SendToDevice pushes a message to a specific device (no-op if offline).
+func (h *Hub) SendToDevice(deviceID string, m Msg) {
+	h.mu.RLock()
+	dc := h.devices[deviceID]
+	h.mu.RUnlock()
+	if dc != nil {
+		dc.Enqueue(m)
+	}
+}
+
+// DeviceOnline reports whether a device with the given ID is connected.
+func (h *Hub) DeviceOnline(deviceID string) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	return h.pi != nil
+	_, ok := h.devices[deviceID]
+	return ok
+}
+
+// OnlineDeviceIDs returns the IDs of all currently connected devices.
+func (h *Hub) OnlineDeviceIDs() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	ids := make([]string, 0, len(h.devices))
+	for id := range h.devices {
+		ids = append(ids, id)
+	}
+	return ids
 }

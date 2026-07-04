@@ -6,7 +6,33 @@ package store
 
 import (
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type Device struct {
+	ID           string             `json:"id"`
+	UserID       string             `json:"user_id"`
+	Name         string             `json:"name"`
+	SecretHash   string             `json:"secret_hash"`
+	AgentVersion *string            `json:"agent_version"`
+	LastSeenAt   pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt    time.Time          `json:"created_at"`
+}
+
+type DeviceState struct {
+	DeviceID    string    `json:"device_id"`
+	IsOnline    bool      `json:"is_online"`
+	DisplayMode string    `json:"display_mode"`
+	Brightness  int32     `json:"brightness"`
+	CpuPercent  float64   `json:"cpu_percent"`
+	MemMb       float64   `json:"mem_mb"`
+	TempC       float64   `json:"temp_c"`
+	UptimeS     int64     `json:"uptime_s"`
+	WifiDbm     int32     `json:"wifi_dbm"`
+	IpAddress   string    `json:"ip_address"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
 
 type SpotifyToken struct {
 	UserID       string    `json:"user_id"`

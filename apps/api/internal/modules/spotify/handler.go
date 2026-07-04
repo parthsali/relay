@@ -47,8 +47,7 @@ func (h *Handler) Connect(c *gin.Context) {
 		response.Unauthorized(c, "user not authenticated")
 		return
 	}
-	authURL := h.service.AuthURL(userID)
-	c.JSON(http.StatusOK, gin.H{"url": authURL})
+	response.OK(c, gin.H{"url": h.service.AuthURL(userID)})
 }
 
 // Callback handles the redirect from Spotify after the user grants permission.
@@ -80,7 +79,7 @@ func (h *Handler) Callback(c *gin.Context) {
 func (h *Handler) Status(c *gin.Context) {
 	userID := c.GetString(middleware.UserIDKey)
 	connected := h.service.IsConnected(c.Request.Context(), userID)
-	c.JSON(http.StatusOK, gin.H{"connected": connected})
+	response.OK(c, gin.H{"connected": connected})
 }
 
 // NowPlaying returns the currently playing Spotify track for the authenticated user.
@@ -91,7 +90,7 @@ func (h *Handler) NowPlaying(c *gin.Context) {
 		response.Internal(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, result)
+	response.OK(c, result)
 }
 
 // Disconnect removes the user's stored Spotify tokens.

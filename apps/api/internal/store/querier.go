@@ -10,13 +10,21 @@ import (
 
 type Querier interface {
 	ActivateUser(ctx context.Context, id string) (User, error)
+	CreateDevice(ctx context.Context, arg CreateDeviceParams) (Device, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteDevice(ctx context.Context, arg DeleteDeviceParams) error
 	DeleteSpotifyToken(ctx context.Context, userID string) error
+	GetDevice(ctx context.Context, id string) (Device, error)
+	GetDeviceState(ctx context.Context, deviceID string) (DeviceState, error)
+	GetDevicesByUser(ctx context.Context, userID string) ([]Device, error)
 	GetSpotifyToken(ctx context.Context, userID string) (SpotifyToken, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByGoogleID(ctx context.Context, googleID *string) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
+	SetDeviceOffline(ctx context.Context, deviceID string) error
+	UpdateDeviceLastSeen(ctx context.Context, arg UpdateDeviceLastSeenParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	UpsertDeviceState(ctx context.Context, arg UpsertDeviceStateParams) error
 	UpsertSpotifyToken(ctx context.Context, arg UpsertSpotifyTokenParams) (SpotifyToken, error)
 }
 
