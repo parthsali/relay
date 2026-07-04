@@ -74,24 +74,6 @@ jobs:
         working-directory: apps/agent/dist
         run: sha256sum relay-agent_* > sha256sums.txt && cat sha256sums.txt
 
-      # Upload binaries to the tag commit as a draft-less attachment.
-      # softprops creates the GitHub Release on top of the existing git tag.
-      - name: Attach binaries to tag (no release)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: agent/v${{ steps.ver.outputs.next }}
-          name: "Agent v${{ steps.ver.outputs.next }} (patch)"
-          prerelease: true
-          generate_release_notes: false
-          body: |
-            Automated patch build — binaries attached.
-            For a full release with release notes, trigger the **Release** workflow manually.
-          files: |
-            apps/agent/dist/relay-agent_linux_arm64
-            apps/agent/dist/relay-agent_linux_arm
-            apps/agent/dist/relay-agent_linux_amd64
-            apps/agent/dist/sha256sums.txt
-
       - name: Summary
         run: |
           echo "### Agent patch — v${{ steps.ver.outputs.next }}" >> "$GITHUB_STEP_SUMMARY"
