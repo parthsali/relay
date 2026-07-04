@@ -24,6 +24,9 @@
         "noExplicitAny": "off",
         "noDocumentCookie": "off"
       },
+      "performance": {
+        "noImgElement": "off"
+      },
       "a11y": {
         "noSvgWithoutTitle": "off",
         "noLabelWithoutControl": "off"

@@ -8,9 +8,15 @@ export const contentType = "image/png";
 export default function Icon() {
   // 3 columns × 3 rows — full grid
   const dots = [
-    { cx: 5, cy: 5 },  { cx: 12, cy: 5 },  { cx: 19, cy: 5 },
-    { cx: 5, cy: 12 }, { cx: 12, cy: 12 }, { cx: 19, cy: 12 },
-    { cx: 5, cy: 19 }, { cx: 12, cy: 19 }, { cx: 19, cy: 19 },
+    { cx: 5, cy: 5 },
+    { cx: 12, cy: 5 },
+    { cx: 19, cy: 5 },
+    { cx: 5, cy: 12 },
+    { cx: 12, cy: 12 },
+    { cx: 19, cy: 12 },
+    { cx: 5, cy: 19 },
+    { cx: 12, cy: 19 },
+    { cx: 19, cy: 19 },
   ];
 
   return new ImageResponse(
