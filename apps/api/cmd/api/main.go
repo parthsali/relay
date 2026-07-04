@@ -12,11 +12,13 @@ import (
 	"github.com/parthsali/relay/apps/api/config"
 	"github.com/parthsali/relay/apps/api/db"
 	"github.com/parthsali/relay/apps/api/internal/database"
+	"github.com/parthsali/relay/apps/api/internal/hub"
 	"github.com/parthsali/relay/apps/api/internal/middleware"
 	"github.com/parthsali/relay/apps/api/internal/migrator"
 	authModule "github.com/parthsali/relay/apps/api/internal/modules/auth"
 	spotifyModule "github.com/parthsali/relay/apps/api/internal/modules/spotify"
 	usersModule "github.com/parthsali/relay/apps/api/internal/modules/users"
+	wsModule "github.com/parthsali/relay/apps/api/internal/modules/ws"
 	"github.com/parthsali/relay/apps/api/internal/store"
 )
 
@@ -60,10 +62,12 @@ func main() {
 	// --- Wire modules ---
 	userHandler := usersModule.NewHandler(usersModule.NewService(queries))
 	authHandler := authModule.NewHandler(authModule.NewService(queries, cfg.JWTSecret), oauthConfig, cfg.FrontendURL)
-	spotifyHandler := spotifyModule.NewHandler(
-		spotifyModule.NewService(queries, cfg.SpotifyClientID, cfg.SpotifyClientSecret, cfg.SpotifyRedirectURL),
-		cfg.FrontendURL,
-	)
+	spotifySvc := spotifyModule.NewService(queries, cfg.SpotifyClientID, cfg.SpotifyClientSecret, cfg.SpotifyRedirectURL)
+	spotifyHandler := spotifyModule.NewHandler(spotifySvc, cfg.FrontendURL)
+
+	// --- WebSocket hub (in-memory, max 2 connections: web + pi) ---
+	wsHub := hub.New()
+	wsHandler := wsModule.NewHandler(wsHub, cfg.JWTSecret, cfg.PISecret, spotifySvc)
 
 	// --- Router ---
 	r := gin.Default()
@@ -91,6 +95,9 @@ func main() {
 
 	// Public: Spotify OAuth callback — Spotify redirects here without a JWT
 	r.Group("/spotify").GET("/callback", spotifyHandler.Callback)
+
+	// WebSocket — no JWT middleware here; the WS handler authenticates internally
+	wsHandler.RegisterRoutes(r.Group("/"))
 
 	// All other routes require a valid JWT
 	protected := r.Group("/")

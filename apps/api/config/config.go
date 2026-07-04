@@ -17,6 +17,7 @@ type Config struct {
 	SpotifyClientID     string
 	SpotifyClientSecret string
 	SpotifyRedirectURL  string
+	PISecret            string
 }
 
 func Load() (*Config, error) {
@@ -46,6 +47,7 @@ func Load() (*Config, error) {
 		SpotifyClientID:     getEnv("SPOTIFY_CLIENT_ID", ""),
 		SpotifyClientSecret: getEnv("SPOTIFY_CLIENT_SECRET", ""),
 		SpotifyRedirectURL:  getEnv("SPOTIFY_REDIRECT_URL", "http://localhost:5001/spotify/callback"),
+		PISecret:            getEnv("PI_SECRET", "changeme-pi-secret"),
 	}, nil
 }
 

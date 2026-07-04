@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Music2, Loader2, ExternalLink, RefreshCw } from "lucide-react";
+import { Music2, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useWebSocket } from "@/hooks/use-websocket";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001";
 
@@ -64,12 +65,7 @@ function SpotifyPageInner() {
     }
   }, []);
 
-  const fetchNowPlaying = useCallback(async () => {
-    try {
-      const res = await apiFetch("/spotify/now-playing");
-      if (res.ok) setNowPlaying(await res.json());
-    } catch { /* silent — don't break UI on poll failure */ }
-  }, []);
+
 
   // On mount: handle OAuth callback params, then check status
   useEffect(() => {
@@ -85,13 +81,19 @@ function SpotifyPageInner() {
     fetchStatus();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll now-playing every 5 s when connected
-  useEffect(() => {
-    if (!connected) { setNowPlaying(null); return; }
-    fetchNowPlaying();
-    const id = setInterval(fetchNowPlaying, 5000);
-    return () => clearInterval(id);
-  }, [connected, fetchNowPlaying]);
+  // WebSocket — push updates from the server instead of polling
+  const { connected: wsLive } = useWebSocket({
+    enabled: !!connected,
+    onMessage: useCallback((msg) => {
+      if (msg.type === "spotify.now_playing") {
+        setNowPlaying(msg.data as NowPlaying);
+      } else if (msg.type === "spotify.idle") {
+        setNowPlaying((prev) => prev ? { ...prev, is_playing: false } : null);
+      } else if (msg.type === "spotify.error") {
+        // silently ignore worker errors in the UI
+      }
+    }, []),
+  });
 
   // Auto-dismiss banner after 5 s
   useEffect(() => {
@@ -199,13 +201,10 @@ function SpotifyPageInner() {
           <div>
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-medium text-muted-foreground">Now Playing</p>
-              <button
-                onClick={fetchNowPlaying}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                title="Refresh"
-              >
-                <RefreshCw className="size-3.5" />
-              </button>
+              <span className={`flex items-center gap-1.5 text-[10px] font-medium ${wsLive ? "text-emerald-500" : "text-muted-foreground"}`}>
+                <span className={`size-1.5 rounded-full ${wsLive ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"}`} />
+                {wsLive ? "Live" : "Connecting…"}
+              </span>
             </div>
 
             {nowPlaying?.is_playing ? (
