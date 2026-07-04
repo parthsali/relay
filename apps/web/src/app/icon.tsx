@@ -6,13 +6,14 @@ export const contentType = "image/png";
 
 // Renders the Grip icon (2×3 dot grid) as the app favicon.
 export default function Icon() {
+  // 3 columns × 2 rows — matches GripHorizontal layout
   const dots = [
-    { cx: 9, cy: 5 },
-    { cx: 15, cy: 5 },
-    { cx: 9, cy: 12 },
-    { cx: 15, cy: 12 },
-    { cx: 9, cy: 19 },
-    { cx: 15, cy: 19 },
+    { cx: 5, cy: 9 },
+    { cx: 12, cy: 9 },
+    { cx: 19, cy: 9 },
+    { cx: 5, cy: 15 },
+    { cx: 12, cy: 15 },
+    { cx: 19, cy: 15 },
   ];
 
   return new ImageResponse(
