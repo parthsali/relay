@@ -1,5 +1,6 @@
 "use client";
 
+import { Grip } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
@@ -25,15 +26,7 @@ export default function AuthCallbackPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 76 65"
-          fill="currentColor"
-          className="animate-pulse text-foreground"
-        >
-          <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
-        </svg>
+        <Grip className="size-5 animate-pulse text-foreground" />
         <p className="text-sm text-muted-foreground">Signing you in…</p>
       </div>
       <Suspense>

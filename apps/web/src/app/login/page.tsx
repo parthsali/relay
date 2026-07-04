@@ -1,5 +1,6 @@
 "use client";
 
+import { Grip } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -28,15 +29,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       {/* Logo */}
       <div className="mb-10 flex items-center gap-2.5">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 76 65"
-          fill="currentColor"
-          className="text-foreground"
-        >
-          <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
-        </svg>
+        <Grip className="size-5 text-foreground" />
         <span className="text-base font-semibold tracking-tight">Relay</span>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Moon, Sun, User } from "lucide-react";
+import { Grip, LogOut, Moon, Sun, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -63,15 +63,7 @@ export function TopNav() {
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-4">
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2.5">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 76 65"
-          fill="currentColor"
-          className="text-foreground"
-        >
-          <path d="M37.5274 0L75.0548 65H0L37.5274 0Z" />
-        </svg>
+        <Grip className="size-4 text-foreground" />
         <span className="text-sm font-semibold tracking-tight">Relay</span>
       </Link>
 
