@@ -81,7 +81,11 @@ func main() {
 	queueHandler := queueModule.NewHandler(queueModule.NewService(queries))
 	automationsHandler := automationsModule.NewHandler(automationsModule.NewService(queries))
 	apikeysHandler := apikeysModule.NewHandler(apikeysModule.NewService(queries))
-	assetsHandler := assetsModule.NewHandler(assetsModule.NewService(queries, cfg.GCSBucket))
+	assetsSvc, err := assetsModule.NewService(ctx, queries, cfg.GCSBucket)
+	if err != nil {
+		log.Fatalf("assets service: %v", err)
+	}
+	assetsHandler := assetsModule.NewHandler(assetsSvc)
 
 	// --- Router ---
 	r := gin.Default()

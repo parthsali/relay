@@ -15,10 +15,12 @@ func userIDFrom(c *gin.Context) string { return c.GetString(middleware.UserIDKey
 // RegisterRoutes mounts asset routes.
 //
 //	GET    /assets
-//	POST   /assets/meta   (register metadata for an already-uploaded file)
+//	POST   /assets/upload-url   (get a signed GCS PUT URL)
+//	POST   /assets/meta         (register metadata after upload)
 //	DELETE /assets/:id
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("", h.List)
+	rg.POST("/upload-url", h.UploadURL)
 	rg.POST("/meta", h.CreateMeta)
 	rg.DELETE("/:id", h.Delete)
 }
@@ -74,6 +76,31 @@ func (h *Handler) CreateMeta(c *gin.Context) {
 		return
 	}
 	response.Created(c, asset)
+}
+
+type uploadURLRequest struct {
+	Filename string `json:"filename" binding:"required"`
+	MimeType string `json:"mime_type"`
+}
+
+// UploadURL returns a signed GCS PUT URL and the gcs_path the browser should
+// pass back to POST /assets/meta after the upload completes.
+func (h *Handler) UploadURL(c *gin.Context) {
+	if !h.svc.GCSEnabled() {
+		response.BadRequest(c, "GCS not configured — set GCS_BUCKET and GOOGLE_APPLICATION_CREDENTIALS")
+		return
+	}
+	var req uploadURLRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	result, err := h.svc.GenerateUploadURL(c.Request.Context(), userIDFrom(c), req.Filename, req.MimeType)
+	if err != nil {
+		response.Internal(c, err)
+		return
+	}
+	response.OK(c, result)
 }
 
 func (h *Handler) Delete(c *gin.Context) {
