@@ -8,6 +8,7 @@ import {
   Film,
   ImageIcon,
   Layers,
+  Loader2,
   Monitor,
   Music2,
   Play,
@@ -15,6 +16,26 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useWebSocket } from "@/hooks/use-websocket";
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001";
+
+function getToken() {
+  if (typeof document === "undefined") return "";
+  const m = document.cookie.match(/(?:^|;\s*)relay_token=([^;]+)/);
+  return m?.[1] ?? "";
+}
+
+async function apiFetch(path: string, opts?: RequestInit) {
+  return fetch(`${API}${path}`, {
+    ...opts,
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      "Content-Type": "application/json",
+      ...opts?.headers,
+    },
+  });
+}
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -170,7 +191,28 @@ const configs: Record<string, React.FC> = {
 
 export default function DisplayPage() {
   const [active, setActive] = useState("spotify");
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
   const Config = configs[active];
+
+  useWebSocket({
+    onMessage: (msg) => {
+      if (msg.type === "device.telemetry") {
+        const d = msg.data as { device_id?: string };
+        if (d.device_id) setDeviceId(d.device_id);
+      }
+    },
+  });
+
+  async function apply() {
+    if (!deviceId) return;
+    setApplying(true);
+    await apiFetch(`/devices/${deviceId}/command`, {
+      method: "POST",
+      body: JSON.stringify({ type: "display.set_mode", mode: active }),
+    });
+    setApplying(false);
+  }
 
   return (
     <div className="flex h-full gap-0">
@@ -216,8 +258,8 @@ export default function DisplayPage() {
               Configure display settings
             </p>
           </div>
-          <Button size="sm">
-            <Play className="size-3.5" />
+          <Button size="sm" onClick={apply} disabled={applying || !deviceId} title={!deviceId ? "No device connected" : ""}>
+            {applying ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
             Apply
           </Button>
         </div>

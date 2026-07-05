@@ -10,6 +10,39 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ApiKey struct {
+	ID         string             `json:"id"`
+	UserID     string             `json:"user_id"`
+	Name       string             `json:"name"`
+	KeyHash    string             `json:"key_hash"`
+	KeyPrefix  string             `json:"key_prefix"`
+	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+	CreatedAt  time.Time          `json:"created_at"`
+}
+
+type Asset struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Name      string    `json:"name"`
+	Filename  string    `json:"filename"`
+	GcsPath   string    `json:"gcs_path"`
+	MimeType  string    `json:"mime_type"`
+	SizeBytes int64     `json:"size_bytes"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Automation struct {
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
+	Name         string    `json:"name"`
+	TriggerType  string    `json:"trigger_type"`
+	TriggerValue *string   `json:"trigger_value"`
+	ActionType   string    `json:"action_type"`
+	ActionValue  string    `json:"action_value"`
+	Active       bool      `json:"active"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 type Device struct {
 	ID           string             `json:"id"`
 	UserID       string             `json:"user_id"`
@@ -32,6 +65,26 @@ type DeviceState struct {
 	WifiDbm     int32     `json:"wifi_dbm"`
 	IpAddress   string    `json:"ip_address"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type QueueItem struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Title     string    `json:"title"`
+	Source    string    `json:"source"`
+	DurationS *int32    `json:"duration_s"`
+	Position  int32     `json:"position"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Schedule struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Name      string    `json:"name"`
+	Cron      string    `json:"cron"`
+	Mode      string    `json:"mode"`
+	Active    bool      `json:"active"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type SpotifyToken struct {

@@ -15,8 +15,13 @@ import (
 	"github.com/parthsali/relay/apps/api/internal/hub"
 	"github.com/parthsali/relay/apps/api/internal/middleware"
 	"github.com/parthsali/relay/apps/api/internal/migrator"
+	apikeysModule "github.com/parthsali/relay/apps/api/internal/modules/apikeys"
+	assetsModule "github.com/parthsali/relay/apps/api/internal/modules/assets"
 	authModule "github.com/parthsali/relay/apps/api/internal/modules/auth"
+	automationsModule "github.com/parthsali/relay/apps/api/internal/modules/automations"
 	devicesModule "github.com/parthsali/relay/apps/api/internal/modules/devices"
+	queueModule "github.com/parthsali/relay/apps/api/internal/modules/queue"
+	schedulesModule "github.com/parthsali/relay/apps/api/internal/modules/schedules"
 	spotifyModule "github.com/parthsali/relay/apps/api/internal/modules/spotify"
 	usersModule "github.com/parthsali/relay/apps/api/internal/modules/users"
 	wsModule "github.com/parthsali/relay/apps/api/internal/modules/ws"
@@ -71,6 +76,13 @@ func main() {
 	wsHandler := wsModule.NewHandler(wsHub, queries, cfg.JWTSecret, spotifySvc)
 	devicesHandler := devicesModule.NewHandler(devicesModule.NewService(queries, wsHub))
 
+	// --- New feature modules ---
+	schedulesHandler := schedulesModule.NewHandler(schedulesModule.NewService(queries))
+	queueHandler := queueModule.NewHandler(queueModule.NewService(queries))
+	automationsHandler := automationsModule.NewHandler(automationsModule.NewService(queries))
+	apikeysHandler := apikeysModule.NewHandler(apikeysModule.NewService(queries))
+	assetsHandler := assetsModule.NewHandler(assetsModule.NewService(queries, cfg.GCSBucket))
+
 	// --- Router ---
 	r := gin.Default()
 
@@ -108,6 +120,11 @@ func main() {
 		userHandler.RegisterRoutes(protected.Group("/users"))
 		spotifyHandler.RegisterProtectedRoutes(protected.Group("/spotify"))
 		devicesHandler.RegisterRoutes(protected.Group("/devices"))
+		schedulesHandler.RegisterRoutes(protected.Group("/schedules"))
+		queueHandler.RegisterRoutes(protected.Group("/queue"))
+		automationsHandler.RegisterRoutes(protected.Group("/automations"))
+		apikeysHandler.RegisterRoutes(protected.Group("/developer/keys"))
+		assetsHandler.RegisterRoutes(protected.Group("/assets"))
 	}
 
 	if cfg.SpotifyClientID == "" || cfg.SpotifyClientSecret == "" {

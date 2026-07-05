@@ -10,19 +10,38 @@ import (
 
 type Querier interface {
 	ActivateUser(ctx context.Context, id string) (User, error)
+	ClearQueue(ctx context.Context, userID string) error
+	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
+	CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error)
+	CreateAutomation(ctx context.Context, arg CreateAutomationParams) (Automation, error)
 	CreateDevice(ctx context.Context, arg CreateDeviceParams) (Device, error)
+	CreateQueueItem(ctx context.Context, arg CreateQueueItemParams) (QueueItem, error)
+	CreateSchedule(ctx context.Context, arg CreateScheduleParams) (Schedule, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteAPIKey(ctx context.Context, arg DeleteAPIKeyParams) error
+	DeleteAsset(ctx context.Context, arg DeleteAssetParams) error
+	DeleteAutomation(ctx context.Context, arg DeleteAutomationParams) error
 	DeleteDevice(ctx context.Context, arg DeleteDeviceParams) error
+	DeleteQueueItem(ctx context.Context, arg DeleteQueueItemParams) error
+	DeleteSchedule(ctx context.Context, arg DeleteScheduleParams) error
 	DeleteSpotifyToken(ctx context.Context, userID string) error
+	GetAPIKeysByUser(ctx context.Context, userID string) ([]ApiKey, error)
+	GetAsset(ctx context.Context, arg GetAssetParams) (Asset, error)
+	GetAssetsByUser(ctx context.Context, userID string) ([]Asset, error)
+	GetAutomationsByUser(ctx context.Context, userID string) ([]Automation, error)
 	GetDevice(ctx context.Context, id string) (Device, error)
 	GetDeviceState(ctx context.Context, deviceID string) (DeviceState, error)
 	GetDevicesByUser(ctx context.Context, userID string) ([]Device, error)
+	GetQueueByUser(ctx context.Context, userID string) ([]QueueItem, error)
+	GetSchedulesByUser(ctx context.Context, userID string) ([]Schedule, error)
 	GetSpotifyToken(ctx context.Context, userID string) (SpotifyToken, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByGoogleID(ctx context.Context, googleID *string) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	SetDeviceOffline(ctx context.Context, deviceID string) error
+	UpdateAutomationActive(ctx context.Context, arg UpdateAutomationActiveParams) error
 	UpdateDeviceLastSeen(ctx context.Context, arg UpdateDeviceLastSeenParams) error
+	UpdateScheduleActive(ctx context.Context, arg UpdateScheduleActiveParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpsertDeviceState(ctx context.Context, arg UpsertDeviceStateParams) error
 	UpsertSpotifyToken(ctx context.Context, arg UpsertSpotifyTokenParams) (SpotifyToken, error)
