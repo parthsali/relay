@@ -124,6 +124,31 @@ func (q *Queries) GetDevicesByUser(ctx context.Context, userID string) ([]Device
 	return items, nil
 }
 
+const renameDevice = `-- name: RenameDevice :one
+UPDATE devices SET name = $1 WHERE id = $2 AND user_id = $3 RETURNING id, user_id, name, secret_hash, agent_version, last_seen_at, created_at
+`
+
+type RenameDeviceParams struct {
+	Name   string `json:"name"`
+	ID     string `json:"id"`
+	UserID string `json:"user_id"`
+}
+
+func (q *Queries) RenameDevice(ctx context.Context, arg RenameDeviceParams) (Device, error) {
+	row := q.db.QueryRow(ctx, renameDevice, arg.Name, arg.ID, arg.UserID)
+	var i Device
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.SecretHash,
+		&i.AgentVersion,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const setDeviceOffline = `-- name: SetDeviceOffline :exec
 UPDATE device_states SET is_online = FALSE, updated_at = NOW()
 WHERE device_id = $1

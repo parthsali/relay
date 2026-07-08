@@ -15,6 +15,7 @@ import {
   Type,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,21 +49,67 @@ async function apiFetch(path: string, opts?: RequestInit) {
 }
 
 const modes = [
-  { id: "spotify",   label: "Spotify",        icon: Music2,      desc: "Now playing with album art" },
-  { id: "clock",     label: "Clock",           icon: Clock,       desc: "Time and date display" },
-  { id: "weather",   label: "Weather",         icon: Cloud,       desc: "Live conditions and forecast" },
-  { id: "image",     label: "Image",           icon: ImageIcon,   desc: "Static image from assets" },
-  { id: "gif",       label: "GIF",             icon: Film,        desc: "Animated GIF loop" },
-  { id: "text",      label: "Text",            icon: Type,        desc: "Scrolling or static message" },
-  { id: "calendar",  label: "Calendar",        icon: CalendarDays,desc: "Upcoming events" },
-  { id: "stats",     label: "CPU Stats",       icon: BarChart2,   desc: "CPU, RAM, temperature" },
-  { id: "monitor",   label: "System Monitor",  icon: Monitor,     desc: "Full system readout" },
-  { id: "slideshow", label: "Slideshow",       icon: Layers,      desc: "Cycle through images" },
+  {
+    id: "spotify",
+    label: "Spotify",
+    icon: Music2,
+    desc: "Now playing with album art",
+  },
+  { id: "clock", label: "Clock", icon: Clock, desc: "Time and date display" },
+  {
+    id: "weather",
+    label: "Weather",
+    icon: Cloud,
+    desc: "Live conditions and forecast",
+  },
+  {
+    id: "image",
+    label: "Image",
+    icon: ImageIcon,
+    desc: "Static image from assets",
+  },
+  { id: "gif", label: "GIF", icon: Film, desc: "Animated GIF loop" },
+  {
+    id: "text",
+    label: "Text",
+    icon: Type,
+    desc: "Scrolling or static message",
+  },
+  {
+    id: "calendar",
+    label: "Calendar",
+    icon: CalendarDays,
+    desc: "Upcoming events",
+  },
+  {
+    id: "stats",
+    label: "CPU Stats",
+    icon: BarChart2,
+    desc: "CPU, RAM, temperature",
+  },
+  {
+    id: "monitor",
+    label: "System Monitor",
+    icon: Monitor,
+    desc: "Full system readout",
+  },
+  {
+    id: "slideshow",
+    label: "Slideshow",
+    icon: Layers,
+    desc: "Cycle through images",
+  },
 ];
 
 // ── Reusable row components ───────────────────────────────────────────────────
 
-function ToggleRow({ label, defaultChecked }: { label: string; defaultChecked?: boolean }) {
+function ToggleRow({
+  label,
+  defaultChecked,
+}: {
+  label: string;
+  defaultChecked?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between border-b border-border px-5 py-3.5 last:border-0">
       <span className="text-sm text-muted-foreground">{label}</span>
@@ -71,7 +118,11 @@ function ToggleRow({ label, defaultChecked }: { label: string; defaultChecked?: 
   );
 }
 
-function SelectRow({ label, defaultValue, options }: {
+function SelectRow({
+  label,
+  defaultValue,
+  options,
+}: {
   label: string;
   defaultValue: string;
   options: { value: string; label: string }[];
@@ -85,7 +136,9 @@ function SelectRow({ label, defaultValue, options }: {
         </SelectTrigger>
         <SelectContent>
           {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
           ))}
         </SelectContent>
       </Select>
@@ -98,14 +151,21 @@ function SelectRow({ label, defaultValue, options }: {
 function SpotifyConfig() {
   return (
     <>
-      <ToggleRow label="Show Album Art"   defaultChecked />
-      <ToggleRow label="Show Song Name"   defaultChecked />
-      <ToggleRow label="Show Artist"      defaultChecked />
-      <ToggleRow label="Progress Bar"     defaultChecked />
+      <ToggleRow label="Show Album Art" defaultChecked />
+      <ToggleRow label="Show Song Name" defaultChecked />
+      <ToggleRow label="Show Artist" defaultChecked />
+      <ToggleRow label="Progress Bar" defaultChecked />
       <ToggleRow label="Background Blur" />
       <ToggleRow label="Auto Brightness" />
-      <SelectRow label="Refresh Interval" defaultValue="5"
-        options={[{ value: "5", label: "5 seconds" }, { value: "10", label: "10 seconds" }, { value: "30", label: "30 seconds" }]} />
+      <SelectRow
+        label="Refresh Interval"
+        defaultValue="5"
+        options={[
+          { value: "5", label: "5 seconds" },
+          { value: "10", label: "10 seconds" },
+          { value: "30", label: "30 seconds" },
+        ]}
+      />
     </>
   );
 }
@@ -114,12 +174,26 @@ function ClockConfig() {
   return (
     <>
       <ToggleRow label="24-hour format" />
-      <ToggleRow label="Show Seconds"  defaultChecked />
-      <ToggleRow label="Show Date"     defaultChecked />
-      <SelectRow label="Timezone" defaultValue="local"
-        options={[{ value: "local", label: "Local" }, { value: "utc", label: "UTC" }, { value: "ny", label: "America/New_York" }, { value: "la", label: "America/Los_Angeles" }]} />
-      <SelectRow label="Font" defaultValue="geist"
-        options={[{ value: "geist", label: "Geist Mono" }, { value: "inter", label: "Inter" }]} />
+      <ToggleRow label="Show Seconds" defaultChecked />
+      <ToggleRow label="Show Date" defaultChecked />
+      <SelectRow
+        label="Timezone"
+        defaultValue="local"
+        options={[
+          { value: "local", label: "Local" },
+          { value: "utc", label: "UTC" },
+          { value: "ny", label: "America/New_York" },
+          { value: "la", label: "America/Los_Angeles" },
+        ]}
+      />
+      <SelectRow
+        label="Font"
+        defaultValue="geist"
+        options={[
+          { value: "geist", label: "Geist Mono" },
+          { value: "inter", label: "Inter" },
+        ]}
+      />
     </>
   );
 }
@@ -128,18 +202,24 @@ function WeatherConfig() {
   return (
     <>
       <ToggleRow label="Show Humidity" defaultChecked />
-      <ToggleRow label="Show Wind"     defaultChecked />
+      <ToggleRow label="Show Wind" defaultChecked />
       <ToggleRow label="Show Forecast" />
       <ToggleRow label="Weather Icons" defaultChecked />
-      <SelectRow label="Temperature" defaultValue="c"
-        options={[{ value: "c", label: "Celsius" }, { value: "f", label: "Fahrenheit" }]} />
+      <SelectRow
+        label="Temperature"
+        defaultValue="c"
+        options={[
+          { value: "c", label: "Celsius" },
+          { value: "f", label: "Fahrenheit" },
+        ]}
+      />
     </>
   );
 }
 
 const configs: Record<string, React.FC> = {
   spotify: SpotifyConfig,
-  clock:   ClockConfig,
+  clock: ClockConfig,
   weather: WeatherConfig,
 };
 
@@ -147,11 +227,11 @@ const configs: Record<string, React.FC> = {
 
 export default function DisplayPage() {
   const [active, setActive] = useState("spotify");
-  const [deviceId, setDeviceId]   = useState<string | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState<string | null>(null);
-  const [applying, setApplying]   = useState(false);
+  const [applying, setApplying] = useState(false);
 
-  const activeMode = modes.find((m) => m.id === active)!;
+  const activeMode = modes.find((m) => m.id === active) ?? modes[0];
   const Config = configs[active];
 
   useWebSocket({
@@ -173,13 +253,18 @@ export default function DisplayPage() {
   });
 
   async function apply() {
-    if (!deviceId) return;
+    if (!deviceId) {
+      toast.error("No device connected");
+      return;
+    }
     setApplying(true);
-    await apiFetch(`/devices/${deviceId}/command`, {
+    const r = await apiFetch(`/devices/${deviceId}/command`, {
       method: "POST",
       body: JSON.stringify({ type: "display.set_mode", mode: active }),
     });
     setApplying(false);
+    if (r.ok) toast.success(`Mode set to ${active}`);
+    else toast.error("Failed to apply mode");
   }
 
   return (
@@ -200,16 +285,18 @@ export default function DisplayPage() {
                 <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
               </span>
               <span className="text-xs text-muted-foreground">
-                {deviceName ?? deviceId.slice(0, 8) + "…"}
+                {deviceName ?? `${deviceId.slice(0, 8)}…`}
               </span>
             </div>
           ) : (
             <span className="text-xs text-muted-foreground/50">No device</span>
           )}
           <Button size="sm" onClick={apply} disabled={applying || !deviceId}>
-            {applying
-              ? <Loader2 className="size-3.5 animate-spin" />
-              : <Play className="size-3.5" />}
+            {applying ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Play className="size-3.5" />
+            )}
             Apply
           </Button>
         </div>
@@ -234,7 +321,14 @@ export default function DisplayPage() {
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                 )}
               >
-                <Icon className={cn("size-3.5 shrink-0", isActive ? "text-foreground" : "text-muted-foreground/50 group-hover:text-muted-foreground")} />
+                <Icon
+                  className={cn(
+                    "size-3.5 shrink-0",
+                    isActive
+                      ? "text-foreground"
+                      : "text-muted-foreground/50 group-hover:text-muted-foreground",
+                  )}
+                />
                 <span className="text-[13px] font-medium">{m.label}</span>
               </button>
             );
@@ -246,7 +340,9 @@ export default function DisplayPage() {
           {/* Mode header */}
           <div className="border-b border-border px-8 py-5">
             <p className="text-[15px] font-semibold">{activeMode.label}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{activeMode.desc}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {activeMode.desc}
+            </p>
           </div>
 
           {/* Options */}
@@ -256,7 +352,9 @@ export default function DisplayPage() {
             </div>
           ) : (
             <div className="px-8 py-6">
-              <p className="text-sm text-muted-foreground">No options for this mode.</p>
+              <p className="text-sm text-muted-foreground">
+                No options for this mode.
+              </p>
             </div>
           )}
         </div>

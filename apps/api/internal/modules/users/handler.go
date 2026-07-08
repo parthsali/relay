@@ -22,6 +22,7 @@ func NewHandler(service *Service) *Handler {
 // The JWT middleware must already be applied by the caller.
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/me", h.GetMe)
+	rg.PATCH("/me", h.UpdateMe)
 }
 
 // GetMe returns the currently authenticated user's profile.
@@ -44,5 +45,29 @@ func (h *Handler) GetMe(c *gin.Context) {
 		return
 	}
 
+	response.OK(c, user)
+}
+
+// UpdateMe updates the authenticated user's display name.
+//
+//	PATCH /users/me
+func (h *Handler) UpdateMe(c *gin.Context) {
+	userID := c.GetString(middleware.UserIDKey)
+	if userID == "" {
+		response.Unauthorized(c, "unauthorized")
+		return
+	}
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	user, err := h.service.UpdateName(c.Request.Context(), userID, req.Name)
+	if err != nil {
+		response.Internal(c, err)
+		return
+	}
 	response.OK(c, user)
 }

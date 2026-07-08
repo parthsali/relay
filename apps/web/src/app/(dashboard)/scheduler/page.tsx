@@ -2,6 +2,7 @@
 
 import { Clock, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,32 +51,49 @@ export default function SchedulerPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function create() {
     if (!name || !cron || !mode) return;
     setSaving(true);
-    await apiFetch("/schedules", {
+    const r = await apiFetch("/schedules", {
       method: "POST",
       body: JSON.stringify({ name, cron, mode }),
     });
     setSaving(false);
-    setName(""); setCron(""); setMode("");
-    setShowForm(false);
-    load();
+    if (r.ok) {
+      toast.success("Schedule created");
+      setName("");
+      setCron("");
+      setMode("");
+      setShowForm(false);
+      load();
+    } else {
+      toast.error("Failed to create schedule");
+    }
   }
 
   async function toggle(s: Schedule) {
-    await apiFetch(`/schedules/${s.id}/active`, {
+    const r = await apiFetch(`/schedules/${s.id}/active`, {
       method: "PATCH",
       body: JSON.stringify({ active: !s.active }),
     });
-    load();
+    if (r.ok) {
+      toast.success(s.active ? "Schedule paused" : "Schedule activated");
+      load();
+    } else {
+      toast.error("Failed to update schedule");
+    }
   }
 
   async function remove(id: string) {
-    await apiFetch(`/schedules/${id}`, { method: "DELETE" });
-    load();
+    const r = await apiFetch(`/schedules/${id}`, { method: "DELETE" });
+    if (r.ok) {
+      toast.success("Schedule deleted");
+      load();
+    } else toast.error("Failed to delete schedule");
   }
 
   return (
@@ -83,7 +101,9 @@ export default function SchedulerPage() {
       <div className="flex w-full items-center justify-between border-b border-border px-8 py-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Scheduler</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Automate display changes based on time.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Automate display changes based on time.
+          </p>
         </div>
         <Button size="sm" onClick={() => setShowForm((v) => !v)}>
           <Plus className="size-3.5" /> New schedule
@@ -97,18 +117,39 @@ export default function SchedulerPage() {
             <div className="flex flex-wrap gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Name</Label>
-                <Input className="h-8 w-48 text-sm" placeholder="Morning clock" value={name} onChange={(e) => setName(e.target.value)} />
+                <Input
+                  className="h-8 w-48 text-sm"
+                  placeholder="Morning clock"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Cron</Label>
-                <Input className="h-8 w-36 font-mono text-sm" placeholder="0 7 * * *" value={cron} onChange={(e) => setCron(e.target.value)} />
+                <Input
+                  className="h-8 w-36 font-mono text-sm"
+                  placeholder="0 7 * * *"
+                  value={cron}
+                  onChange={(e) => setCron(e.target.value)}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Mode</Label>
-                <Input className="h-8 w-36 text-sm" placeholder="clock" value={mode} onChange={(e) => setMode(e.target.value)} />
+                <Input
+                  className="h-8 w-36 text-sm"
+                  placeholder="clock"
+                  value={mode}
+                  onChange={(e) => setMode(e.target.value)}
+                />
               </div>
               <div className="flex items-end">
-                <Button size="sm" disabled={saving || !name || !cron || !mode} onClick={create}>Save</Button>
+                <Button
+                  size="sm"
+                  disabled={saving || !name || !cron || !mode}
+                  onClick={create}
+                >
+                  Save
+                </Button>
               </div>
             </div>
           </div>
@@ -119,19 +160,31 @@ export default function SchedulerPage() {
         ) : (
           <div className="overflow-hidden rounded-lg border border-border">
             {schedules.map((s) => (
-              <div key={s.id} className="flex items-center gap-4 border-b border-border px-4 py-4 last:border-0">
+              <div
+                key={s.id}
+                className="flex items-center gap-4 border-b border-border px-4 py-4 last:border-0"
+              >
                 <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
                   <Clock className="size-4 text-muted-foreground" />
                 </div>
                 <div className="flex flex-1 flex-col gap-0.5">
                   <p className="text-sm font-medium">{s.name}</p>
-                  <p className="font-mono text-xs text-muted-foreground">{s.cron} → {s.mode}</p>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {s.cron} → {s.mode}
+                  </p>
                 </div>
-                <button type="button" onClick={() => toggle(s)}
-                  className={`text-xs font-medium px-2 py-0.5 rounded-full cursor-pointer ${s.active ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}>
+                <button
+                  type="button"
+                  onClick={() => toggle(s)}
+                  className={`text-xs font-medium px-2 py-0.5 rounded-full cursor-pointer ${s.active ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}
+                >
                   {s.active ? "Active" : "Paused"}
                 </button>
-                <button type="button" onClick={() => remove(s.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                <button
+                  type="button"
+                  onClick={() => remove(s.id)}
+                  className="text-muted-foreground hover:text-destructive transition-colors"
+                >
                   <Trash2 className="size-3.5" />
                 </button>
               </div>

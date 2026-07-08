@@ -2,6 +2,7 @@
 
 import { Clock, GripVertical, Plus, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,29 +49,43 @@ export default function QueuePage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function add() {
     if (!title || !source) return;
     setSaving(true);
-    await apiFetch("/queue", {
+    const r = await apiFetch("/queue", {
       method: "POST",
       body: JSON.stringify({ title, source, position: items.length }),
     });
     setSaving(false);
-    setTitle(""); setSource("");
-    setShowForm(false);
-    load();
+    if (r.ok) {
+      toast.success("Added to queue");
+      setTitle("");
+      setSource("");
+      setShowForm(false);
+      load();
+    } else {
+      toast.error("Failed to add item");
+    }
   }
 
   async function remove(id: string) {
-    await apiFetch(`/queue/${id}`, { method: "DELETE" });
-    load();
+    const r = await apiFetch(`/queue/${id}`, { method: "DELETE" });
+    if (r.ok) {
+      toast.success("Removed from queue");
+      load();
+    } else toast.error("Failed to remove item");
   }
 
   async function clear() {
-    await apiFetch("/queue", { method: "DELETE" });
-    load();
+    const r = await apiFetch("/queue", { method: "DELETE" });
+    if (r.ok) {
+      toast.success("Queue cleared");
+      load();
+    } else toast.error("Failed to clear queue");
   }
 
   function fmt(s: number | null) {
@@ -84,7 +99,9 @@ export default function QueuePage() {
       <div className="flex w-full items-center justify-between border-b border-border px-8 py-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Queue</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Manage what displays next on your screen.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Manage what displays next on your screen.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {items.length > 0 && (
@@ -105,14 +122,30 @@ export default function QueuePage() {
             <div className="flex flex-wrap gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Title</Label>
-                <Input className="h-8 w-52 text-sm" placeholder="Spotify — Now Playing" value={title} onChange={(e) => setTitle(e.target.value)} />
+                <Input
+                  className="h-8 w-52 text-sm"
+                  placeholder="Spotify — Now Playing"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Source</Label>
-                <Input className="h-8 w-36 text-sm" placeholder="spotify" value={source} onChange={(e) => setSource(e.target.value)} />
+                <Input
+                  className="h-8 w-36 text-sm"
+                  placeholder="spotify"
+                  value={source}
+                  onChange={(e) => setSource(e.target.value)}
+                />
               </div>
               <div className="flex items-end">
-                <Button size="sm" disabled={saving || !title || !source} onClick={add}>Add</Button>
+                <Button
+                  size="sm"
+                  disabled={saving || !title || !source}
+                  onClick={add}
+                >
+                  Add
+                </Button>
               </div>
             </div>
           </div>
@@ -123,9 +156,14 @@ export default function QueuePage() {
         ) : (
           <div className="overflow-hidden rounded-lg border border-border">
             {items.map((item, i) => (
-              <div key={item.id} className="flex items-center gap-4 border-b border-border px-4 py-3.5 last:border-0">
+              <div
+                key={item.id}
+                className="flex items-center gap-4 border-b border-border px-4 py-3.5 last:border-0"
+              >
                 <GripVertical className="size-4 shrink-0 text-muted-foreground/30" />
-                <span className="w-5 text-center font-mono text-xs text-muted-foreground/40">{i + 1}</span>
+                <span className="w-5 text-center font-mono text-xs text-muted-foreground/40">
+                  {i + 1}
+                </span>
                 <div className="flex flex-1 flex-col gap-0.5">
                   <p className="text-sm font-medium">{item.title}</p>
                   <p className="text-xs text-muted-foreground">{item.source}</p>
@@ -133,7 +171,11 @@ export default function QueuePage() {
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="size-3" /> {fmt(item.duration_s)}
                 </div>
-                <button type="button" onClick={() => remove(item.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                <button
+                  type="button"
+                  onClick={() => remove(item.id)}
+                  className="text-muted-foreground hover:text-destructive transition-colors"
+                >
                   <Trash2 className="size-3.5" />
                 </button>
               </div>

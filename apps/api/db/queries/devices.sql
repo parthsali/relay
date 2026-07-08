@@ -40,3 +40,6 @@ SELECT * FROM device_states WHERE device_id = $1 LIMIT 1;
 -- name: SetDeviceOffline :exec
 UPDATE device_states SET is_online = FALSE, updated_at = NOW()
 WHERE device_id = $1;
+
+-- name: RenameDevice :one
+UPDATE devices SET name = $1 WHERE id = $2 AND user_id = $3 RETURNING *;

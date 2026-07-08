@@ -38,11 +38,13 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByGoogleID(ctx context.Context, googleID *string) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
+	RenameDevice(ctx context.Context, arg RenameDeviceParams) (Device, error)
 	SetDeviceOffline(ctx context.Context, deviceID string) error
 	UpdateAutomationActive(ctx context.Context, arg UpdateAutomationActiveParams) error
 	UpdateDeviceLastSeen(ctx context.Context, arg UpdateDeviceLastSeenParams) error
 	UpdateScheduleActive(ctx context.Context, arg UpdateScheduleActiveParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
+	UpdateUserName(ctx context.Context, arg UpdateUserNameParams) (User, error)
 	UpsertDeviceState(ctx context.Context, arg UpsertDeviceStateParams) error
 	UpsertSpotifyToken(ctx context.Context, arg UpsertSpotifyTokenParams) (SpotifyToken, error)
 }

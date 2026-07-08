@@ -23,12 +23,14 @@ func NewHandler(svc *Service) *Handler {
 //
 //	POST   /devices/register
 //	GET    /devices
+//	PATCH  /devices/:id
 //	DELETE /devices/:id
 //	GET    /devices/:id/state
 //	POST   /devices/:id/command
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/register", h.Register)
 	rg.GET("", h.List)
+	rg.PATCH("/:id", h.Rename)
 	rg.DELETE("/:id", h.Delete)
 	rg.GET("/:id/state", h.State)
 	rg.POST("/:id/command", h.Command)
@@ -63,6 +65,25 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"devices": devices})
+}
+
+// Rename updates the device name.
+func (h *Handler) Rename(c *gin.Context) {
+	userID := userIDFrom(c)
+	deviceID := c.Param("id")
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	device, err := h.svc.Rename(c.Request.Context(), userID, deviceID, req.Name)
+	if err != nil {
+		response.Internal(c, err)
+		return
+	}
+	response.OK(c, device)
 }
 
 // Delete removes a device owned by the authenticated user.

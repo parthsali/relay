@@ -2,6 +2,7 @@
 
 import { Plus, Trash2, Zap } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,32 +53,55 @@ export default function AutomationsPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function create() {
     if (!name || !triggerType || !actionType || !actionValue) return;
     setSaving(true);
-    await apiFetch("/automations", {
+    const r = await apiFetch("/automations", {
       method: "POST",
-      body: JSON.stringify({ name, trigger_type: triggerType, action_type: actionType, action_value: actionValue }),
+      body: JSON.stringify({
+        name,
+        trigger_type: triggerType,
+        action_type: actionType,
+        action_value: actionValue,
+      }),
     });
     setSaving(false);
-    setName(""); setTriggerType(""); setActionType(""); setActionValue("");
-    setShowForm(false);
-    load();
+    if (r.ok) {
+      toast.success("Automation created");
+      setName("");
+      setTriggerType("");
+      setActionType("");
+      setActionValue("");
+      setShowForm(false);
+      load();
+    } else {
+      toast.error("Failed to create automation");
+    }
   }
 
   async function toggle(a: Automation) {
-    await apiFetch(`/automations/${a.id}/active`, {
+    const r = await apiFetch(`/automations/${a.id}/active`, {
       method: "PATCH",
       body: JSON.stringify({ active: !a.active }),
     });
-    load();
+    if (r.ok) {
+      toast.success(a.active ? "Automation paused" : "Automation activated");
+      load();
+    } else {
+      toast.error("Failed to update automation");
+    }
   }
 
   async function remove(id: string) {
-    await apiFetch(`/automations/${id}`, { method: "DELETE" });
-    load();
+    const r = await apiFetch(`/automations/${id}`, { method: "DELETE" });
+    if (r.ok) {
+      toast.success("Automation deleted");
+      load();
+    } else toast.error("Failed to delete automation");
   }
 
   return (
@@ -85,7 +109,9 @@ export default function AutomationsPage() {
       <div className="flex w-full items-center justify-between border-b border-border px-8 py-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Automations</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Trigger display changes automatically based on conditions.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Trigger display changes automatically based on conditions.
+          </p>
         </div>
         <Button size="sm" onClick={() => setShowForm((v) => !v)}>
           <Plus className="size-3.5" /> New automation
@@ -99,22 +125,54 @@ export default function AutomationsPage() {
             <div className="flex flex-wrap gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Name</Label>
-                <Input className="h-8 w-44 text-sm" placeholder="Spotify Playing" value={name} onChange={(e) => setName(e.target.value)} />
+                <Input
+                  className="h-8 w-44 text-sm"
+                  placeholder="Spotify Playing"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Trigger</Label>
-                <Input className="h-8 w-36 text-sm" placeholder="spotify.playing" value={triggerType} onChange={(e) => setTriggerType(e.target.value)} />
+                <Input
+                  className="h-8 w-36 text-sm"
+                  placeholder="spotify.playing"
+                  value={triggerType}
+                  onChange={(e) => setTriggerType(e.target.value)}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Action type</Label>
-                <Input className="h-8 w-36 text-sm" placeholder="display.set_mode" value={actionType} onChange={(e) => setActionType(e.target.value)} />
+                <Input
+                  className="h-8 w-36 text-sm"
+                  placeholder="display.set_mode"
+                  value={actionType}
+                  onChange={(e) => setActionType(e.target.value)}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Action value</Label>
-                <Input className="h-8 w-36 text-sm" placeholder="spotify" value={actionValue} onChange={(e) => setActionValue(e.target.value)} />
+                <Input
+                  className="h-8 w-36 text-sm"
+                  placeholder="spotify"
+                  value={actionValue}
+                  onChange={(e) => setActionValue(e.target.value)}
+                />
               </div>
               <div className="flex items-end">
-                <Button size="sm" disabled={saving || !name || !triggerType || !actionType || !actionValue} onClick={create}>Save</Button>
+                <Button
+                  size="sm"
+                  disabled={
+                    saving ||
+                    !name ||
+                    !triggerType ||
+                    !actionType ||
+                    !actionValue
+                  }
+                  onClick={create}
+                >
+                  Save
+                </Button>
               </div>
             </div>
           </div>
@@ -125,21 +183,33 @@ export default function AutomationsPage() {
         ) : (
           <div className="overflow-hidden rounded-lg border border-border">
             {automations.map((a) => (
-              <div key={a.id} className="flex items-center gap-4 border-b border-border px-4 py-4 last:border-0">
+              <div
+                key={a.id}
+                className="flex items-center gap-4 border-b border-border px-4 py-4 last:border-0"
+              >
                 <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
                   <Zap className="size-4 text-muted-foreground" />
                 </div>
                 <div className="flex flex-1 flex-col gap-0.5">
                   <p className="text-sm font-medium">{a.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    <span className="text-foreground/60">{a.trigger_type}</span>{" → "}{a.action_value}
+                    <span className="text-foreground/60">{a.trigger_type}</span>
+                    {" → "}
+                    {a.action_value}
                   </p>
                 </div>
-                <button type="button" onClick={() => toggle(a)}
-                  className={`text-xs font-medium px-2 py-0.5 rounded-full cursor-pointer ${a.active ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}>
+                <button
+                  type="button"
+                  onClick={() => toggle(a)}
+                  className={`text-xs font-medium px-2 py-0.5 rounded-full cursor-pointer ${a.active ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}
+                >
                   {a.active ? "Active" : "Paused"}
                 </button>
-                <button type="button" onClick={() => remove(a.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                <button
+                  type="button"
+                  onClick={() => remove(a.id)}
+                  className="text-muted-foreground hover:text-destructive transition-colors"
+                >
                   <Trash2 className="size-3.5" />
                 </button>
               </div>

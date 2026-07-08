@@ -132,9 +132,12 @@ export function TopNav() {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => router.push("/profile")}
+            >
               <User className="size-3.5" />
-              <Link href="/settings">Profile</Link>
+              Profile
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

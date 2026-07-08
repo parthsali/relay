@@ -14,6 +14,7 @@ import {
   Plug,
   Settings,
   Terminal,
+  User,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
@@ -53,6 +54,7 @@ const groups = [
     items: [
       { label: "Developer", href: "/developer", icon: Code2 },
       { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Profile", href: "/profile", icon: User },
     ],
   },
 ];

@@ -88,6 +88,19 @@ func (s *Service) List(ctx context.Context, userID string) ([]DeviceWithStatus, 
 	return out, nil
 }
 
+// Rename updates the human-readable name of a device.
+func (s *Service) Rename(ctx context.Context, userID, deviceID, name string) (SafeDevice, error) {
+	d, err := s.queries.RenameDevice(ctx, store.RenameDeviceParams{
+		Name:   name,
+		ID:     deviceID,
+		UserID: userID,
+	})
+	if err != nil {
+		return SafeDevice{}, err
+	}
+	return safeDevice(d), nil
+}
+
 // Delete removes a device owned by the user.
 func (s *Service) Delete(ctx context.Context, userID, deviceID string) error {
 	return s.queries.DeleteDevice(ctx, store.DeleteDeviceParams{

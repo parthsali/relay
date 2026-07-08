@@ -1,97 +1,270 @@
-import { Button } from "@/components/ui/button";
+"use client";
 
-const sections = [
-  {
-    title: "General",
-    rows: [
-      { label: "Device name", value: "relay-pi.local", type: "text" },
-      { label: "Timezone", value: "Asia/Kolkata (UTC+5:30)", type: "text" },
-      { label: "Language", value: "English", type: "text" },
-    ],
-  },
-  {
-    title: "Display",
-    rows: [
-      { label: "Brightness", value: "68%", type: "text" },
-      { label: "Auto-brightness", value: "Enabled", type: "toggle" },
-      { label: "Screen timeout", value: "Never", type: "text" },
-      { label: "Orientation", value: "Landscape", type: "text" },
-    ],
-  },
-  {
-    title: "Agent",
-    rows: [
-      { label: "Agent port", value: "8080", type: "text" },
-      { label: "Auto-start on boot", value: "Enabled", type: "toggle" },
-      { label: "Log level", value: "INFO", type: "text" },
-    ],
-  },
-];
+import { Check, Loader2, Pencil, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001";
+
+function getToken() {
+  if (typeof document === "undefined") return "";
+  const m = document.cookie.match(/(?:^|;\s*)relay_token=([^;]+)/);
+  return m?.[1] ?? "";
+}
+
+async function apiFetch(path: string, opts?: RequestInit) {
+  return fetch(`${API}${path}`, {
+    ...opts,
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      "Content-Type": "application/json",
+      ...opts?.headers,
+    },
+  });
+}
+
+type Device = {
+  id: string;
+  name: string;
+  agent_version: string | null;
+  last_seen_at: string | null;
+  created_at: string;
+  is_online: boolean;
+};
+
+type DeviceState = {
+  display_mode: string;
+  brightness: number;
+  ip_address: string;
+};
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center border-b border-border px-5 py-3.5 last:border-0">
+      <p className="w-44 shrink-0 text-sm text-muted-foreground">{label}</p>
+      <p className="flex-1 text-sm">
+        {value ?? <span className="text-muted-foreground/40">—</span>}
+      </p>
+    </div>
+  );
+}
+
+function EditableRow({
+  label,
+  value,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  onSave: (next: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  async function save() {
+    if (!draft.trim() || draft === value) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    await onSave(draft.trim());
+    setSaving(false);
+    setEditing(false);
+  }
+
+  return (
+    <div className="flex items-center border-b border-border px-5 py-3 last:border-0">
+      <p className="w-44 shrink-0 text-sm text-muted-foreground">{label}</p>
+      {editing ? (
+        <div className="flex flex-1 items-center gap-2">
+          <Input
+            className="h-7 flex-1 text-sm"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {saving ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Check className="size-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="flex-1 text-sm">{value}</p>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [states, setStates] = useState<Record<string, DeviceState>>({});
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    const r = await apiFetch("/devices");
+    if (r.ok) {
+      const j = await r.json();
+      const devs: Device[] = j.data?.devices ?? [];
+      setDevices(devs);
+      // Fetch state for each device in parallel
+      const stateEntries = await Promise.all(
+        devs.map(async (d) => {
+          const sr = await apiFetch(`/devices/${d.id}/state`);
+          if (sr.ok) {
+            const sj = await sr.json();
+            return [d.id, sj.data] as [string, DeviceState];
+          }
+          return null;
+        }),
+      );
+      const stateMap: Record<string, DeviceState> = {};
+      for (const entry of stateEntries) {
+        if (entry) stateMap[entry[0]] = entry[1];
+      }
+      setStates(stateMap);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function renameDevice(id: string, name: string) {
+    const r = await apiFetch(`/devices/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    });
+    if (r.ok) {
+      toast.success("Device renamed");
+      load();
+    } else toast.error("Failed to rename device");
+  }
+
+  async function deleteDevice(id: string) {
+    if (!confirm("Remove this device? The agent will need to re-register."))
+      return;
+    const r = await apiFetch(`/devices/${id}`, { method: "DELETE" });
+    if (r.ok) {
+      toast.success("Device removed");
+      load();
+    } else toast.error("Failed to remove device");
+  }
+
   return (
     <div className="flex w-full flex-1 flex-col">
-      <div className="flex w-full items-center justify-between border-b border-border px-8 py-6">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Configure your Relay device and agent.
-          </p>
-        </div>
-        <Button size="sm">Save changes</Button>
+      <div className="border-b border-border px-8 py-6">
+        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Manage your registered devices.
+        </p>
       </div>
 
       <div className="flex flex-col gap-8 px-8 py-6">
-        {sections.map((section) => (
-          <div key={section.title}>
-            <p className="mb-3 text-sm font-medium text-muted-foreground">
-              {section.title}
-            </p>
-            <div className="overflow-hidden rounded-lg border border-border">
-              {section.rows.map((row, i) => (
-                <div
-                  key={i}
-                  className="flex items-center border-b border-border px-4 py-3.5 last:border-0"
-                >
-                  <p className="w-48 shrink-0 text-sm text-muted-foreground">
-                    {row.label}
-                  </p>
-                  <p className="flex-1 text-sm">{row.value}</p>
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin" /> Loading…
+          </div>
+        ) : devices.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No devices registered yet. Use the agent to register one.
+          </p>
+        ) : (
+          devices.map((d) => {
+            const state = states[d.id];
+            return (
+              <div key={d.id}>
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`size-1.5 rounded-full ${d.is_online ? "bg-emerald-500" : "bg-muted-foreground/30"}`}
+                    />
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {d.is_online ? "Online" : "Offline"}
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => deleteDevice(d.id)}
+                    className="text-xs text-muted-foreground/50 hover:text-destructive transition-colors"
                   >
-                    Edit
+                    Remove device
                   </button>
                 </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {/* Danger zone */}
-        <div>
-          <p className="mb-3 text-sm font-medium text-muted-foreground">
-            Danger zone
-          </p>
-          <div className="rounded-lg border border-destructive/20 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Reset to factory defaults</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  This will erase all settings and data.
-                </p>
+                <div className="overflow-hidden rounded-lg border border-border">
+                  <EditableRow
+                    label="Device name"
+                    value={d.name}
+                    onSave={(name) => renameDevice(d.id, name)}
+                  />
+                  <InfoRow
+                    label="Device ID"
+                    value={<span className="font-mono text-xs">{d.id}</span>}
+                  />
+                  <InfoRow
+                    label="Agent version"
+                    value={d.agent_version ?? "unknown"}
+                  />
+                  <InfoRow
+                    label="IP address"
+                    value={state?.ip_address || "—"}
+                  />
+                  <InfoRow label="Display mode" value={state?.display_mode} />
+                  <InfoRow
+                    label="Brightness"
+                    value={state ? `${state.brightness}%` : undefined}
+                  />
+                  <InfoRow
+                    label="Last seen"
+                    value={
+                      d.last_seen_at
+                        ? new Date(d.last_seen_at).toLocaleString()
+                        : "Never"
+                    }
+                  />
+                  <InfoRow
+                    label="Registered"
+                    value={new Date(d.created_at).toLocaleDateString()}
+                  />
+                </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive hover:text-destructive border-destructive/30"
-              >
-                Reset
-              </Button>
-            </div>
-          </div>
-        </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 // Routes that do NOT require authentication
 const PUBLIC = ["/login", "/auth/callback"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("relay_token")?.value;
 

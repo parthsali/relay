@@ -19,3 +19,7 @@ func NewService(queries *store.Queries) *Service {
 func (s *Service) GetByID(ctx context.Context, id string) (store.User, error) {
 	return s.queries.GetUserByID(ctx, id)
 }
+
+func (s *Service) UpdateName(ctx context.Context, id, name string) (store.User, error) {
+	return s.queries.UpdateUserName(ctx, store.UpdateUserNameParams{Name: name, ID: id})
+}
