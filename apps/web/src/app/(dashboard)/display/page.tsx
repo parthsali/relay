@@ -16,7 +16,17 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { cn } from "@/lib/utils";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5001";
 
@@ -36,163 +46,112 @@ async function apiFetch(path: string, opts?: RequestInit) {
     },
   });
 }
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 
 const modes = [
-  { id: "spotify", label: "Spotify", icon: Music2 },
-  { id: "clock", label: "Clock", icon: Clock },
-  { id: "weather", label: "Weather", icon: Cloud },
-  { id: "image", label: "Image", icon: ImageIcon },
-  { id: "gif", label: "GIF", icon: Film },
-  { id: "text", label: "Text", icon: Type },
-  { id: "calendar", label: "Calendar", icon: CalendarDays },
-  { id: "stats", label: "CPU Stats", icon: BarChart2 },
-  { id: "monitor", label: "System Monitor", icon: Monitor },
-  { id: "slideshow", label: "Slideshow", icon: Layers },
+  { id: "spotify",   label: "Spotify",        icon: Music2,      desc: "Now playing with album art" },
+  { id: "clock",     label: "Clock",           icon: Clock,       desc: "Time and date display" },
+  { id: "weather",   label: "Weather",         icon: Cloud,       desc: "Live conditions and forecast" },
+  { id: "image",     label: "Image",           icon: ImageIcon,   desc: "Static image from assets" },
+  { id: "gif",       label: "GIF",             icon: Film,        desc: "Animated GIF loop" },
+  { id: "text",      label: "Text",            icon: Type,        desc: "Scrolling or static message" },
+  { id: "calendar",  label: "Calendar",        icon: CalendarDays,desc: "Upcoming events" },
+  { id: "stats",     label: "CPU Stats",       icon: BarChart2,   desc: "CPU, RAM, temperature" },
+  { id: "monitor",   label: "System Monitor",  icon: Monitor,     desc: "Full system readout" },
+  { id: "slideshow", label: "Slideshow",       icon: Layers,      desc: "Cycle through images" },
 ];
+
+// ── Reusable row components ───────────────────────────────────────────────────
+
+function ToggleRow({ label, defaultChecked }: { label: string; defaultChecked?: boolean }) {
+  return (
+    <div className="flex items-center justify-between border-b border-border px-5 py-3.5 last:border-0">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <Switch defaultChecked={defaultChecked} />
+    </div>
+  );
+}
+
+function SelectRow({ label, defaultValue, options }: {
+  label: string;
+  defaultValue: string;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div className="flex items-center justify-between border-b border-border px-5 py-3 last:border-0">
+      <Label className="text-sm text-muted-foreground">{label}</Label>
+      <Select defaultValue={defaultValue}>
+        <SelectTrigger className="h-7 w-36 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+// ── Mode config panels ────────────────────────────────────────────────────────
 
 function SpotifyConfig() {
   return (
-    <div className="flex flex-col gap-4">
-      {[
-        ["Enable", true],
-        ["Show Album Art", true],
-        ["Show Song Name", true],
-        ["Show Artist", true],
-        ["Progress Bar", true],
-        ["Background Blur", false],
-        ["Auto Brightness", false],
-      ].map(([label, def]) => (
-        <div
-          key={label as string}
-          className="flex items-center justify-between"
-        >
-          <Label className="text-sm text-muted-foreground">
-            {label as string}
-          </Label>
-          <Switch defaultChecked={def as boolean} />
-        </div>
-      ))}
-      <div className="flex flex-col gap-1.5 pt-1">
-        <Label className="text-sm text-muted-foreground">
-          Refresh Interval
-        </Label>
-        <Select defaultValue="5">
-          <SelectTrigger className="h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="5">5 seconds</SelectItem>
-            <SelectItem value="10">10 seconds</SelectItem>
-            <SelectItem value="30">30 seconds</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+    <>
+      <ToggleRow label="Show Album Art"   defaultChecked />
+      <ToggleRow label="Show Song Name"   defaultChecked />
+      <ToggleRow label="Show Artist"      defaultChecked />
+      <ToggleRow label="Progress Bar"     defaultChecked />
+      <ToggleRow label="Background Blur" />
+      <ToggleRow label="Auto Brightness" />
+      <SelectRow label="Refresh Interval" defaultValue="5"
+        options={[{ value: "5", label: "5 seconds" }, { value: "10", label: "10 seconds" }, { value: "30", label: "30 seconds" }]} />
+    </>
   );
 }
 
 function ClockConfig() {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm text-muted-foreground">24-hour format</Label>
-        <Switch />
-      </div>
-      <div className="flex items-center justify-between">
-        <Label className="text-sm text-muted-foreground">Show Seconds</Label>
-        <Switch defaultChecked />
-      </div>
-      <div className="flex items-center justify-between">
-        <Label className="text-sm text-muted-foreground">Show Date</Label>
-        <Switch defaultChecked />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-sm text-muted-foreground">Timezone</Label>
-        <Select defaultValue="local">
-          <SelectTrigger className="h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="local">Local</SelectItem>
-            <SelectItem value="utc">UTC</SelectItem>
-            <SelectItem value="ny">America/New_York</SelectItem>
-            <SelectItem value="la">America/Los_Angeles</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-sm text-muted-foreground">Font</Label>
-        <Select defaultValue="geist">
-          <SelectTrigger className="h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="geist">Geist Mono</SelectItem>
-            <SelectItem value="inter">Inter</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+    <>
+      <ToggleRow label="24-hour format" />
+      <ToggleRow label="Show Seconds"  defaultChecked />
+      <ToggleRow label="Show Date"     defaultChecked />
+      <SelectRow label="Timezone" defaultValue="local"
+        options={[{ value: "local", label: "Local" }, { value: "utc", label: "UTC" }, { value: "ny", label: "America/New_York" }, { value: "la", label: "America/Los_Angeles" }]} />
+      <SelectRow label="Font" defaultValue="geist"
+        options={[{ value: "geist", label: "Geist Mono" }, { value: "inter", label: "Inter" }]} />
+    </>
   );
 }
 
 function WeatherConfig() {
   return (
-    <div className="flex flex-col gap-4">
-      {[
-        ["Show Humidity", true],
-        ["Show Wind", true],
-        ["Show Forecast", false],
-        ["Weather Icons", true],
-      ].map(([label, def]) => (
-        <div
-          key={label as string}
-          className="flex items-center justify-between"
-        >
-          <Label className="text-sm text-muted-foreground">
-            {label as string}
-          </Label>
-          <Switch defaultChecked={def as boolean} />
-        </div>
-      ))}
-      <div className="flex flex-col gap-1.5 pt-1">
-        <Label className="text-sm text-muted-foreground">
-          Temperature Unit
-        </Label>
-        <Select defaultValue="c">
-          <SelectTrigger className="h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="c">Celsius</SelectItem>
-            <SelectItem value="f">Fahrenheit</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+    <>
+      <ToggleRow label="Show Humidity" defaultChecked />
+      <ToggleRow label="Show Wind"     defaultChecked />
+      <ToggleRow label="Show Forecast" />
+      <ToggleRow label="Weather Icons" defaultChecked />
+      <SelectRow label="Temperature" defaultValue="c"
+        options={[{ value: "c", label: "Celsius" }, { value: "f", label: "Fahrenheit" }]} />
+    </>
   );
 }
 
 const configs: Record<string, React.FC> = {
   spotify: SpotifyConfig,
-  clock: ClockConfig,
+  clock:   ClockConfig,
   weather: WeatherConfig,
 };
 
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export default function DisplayPage() {
   const [active, setActive] = useState("spotify");
-  const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [applying, setApplying] = useState(false);
+  const [deviceId, setDeviceId]   = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState<string | null>(null);
+  const [applying, setApplying]   = useState(false);
+
+  const activeMode = modes.find((m) => m.id === active)!;
   const Config = configs[active];
 
   useWebSocket({
@@ -200,6 +159,15 @@ export default function DisplayPage() {
       if (msg.type === "device.telemetry") {
         const d = msg.data as { device_id?: string };
         if (d.device_id) setDeviceId(d.device_id);
+      }
+      if (msg.type === "device.online") {
+        const d = msg.data as { device_id?: string; name?: string };
+        if (d.device_id) setDeviceId(d.device_id);
+        if (d.name) setDeviceName(d.name);
+      }
+      if (msg.type === "device.offline") {
+        setDeviceId(null);
+        setDeviceName(null);
       }
     },
   });
@@ -215,70 +183,82 @@ export default function DisplayPage() {
   }
 
   return (
-    <div className="flex h-full gap-0">
-      {/* Mode picker */}
-      <div className="flex w-56 shrink-0 flex-col border-r border-border overflow-y-auto px-2 py-4">
-        <p className="mb-2 px-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/40">
-          Mode
-        </p>
-        {modes.map((m) => {
-          const Icon = m.icon;
-          return (
-            <button
-              type="button"
-              key={m.id}
-              onClick={() => setActive(m.id)}
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-left transition-colors w-full",
-                active === m.id
-                  ? "bg-sidebar-accent text-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/60",
-              )}
-            >
-              <Icon
-                className={cn(
-                  "size-3.75 shrink-0",
-                  active === m.id
-                    ? "text-foreground"
-                    : "text-muted-foreground/50",
-                )}
-              />
-              {m.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Config panel */}
-      <div className="flex flex-1 flex-col gap-8 px-10 py-9 overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-[15px] font-semibold capitalize">{active}</h2>
-            <p className="mt-0.5 text-[13px] text-muted-foreground">
-              Configure display settings
-            </p>
-          </div>
-          <Button size="sm" onClick={apply} disabled={applying || !deviceId} title={!deviceId ? "No device connected" : ""}>
-            {applying ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* Header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-8 py-5">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Display</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Choose a mode and push it to the device.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {deviceId ? (
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex size-1.5">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {deviceName ?? deviceId.slice(0, 8) + "…"}
+              </span>
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground/50">No device</span>
+          )}
+          <Button size="sm" onClick={apply} disabled={applying || !deviceId}>
+            {applying
+              ? <Loader2 className="size-3.5 animate-spin" />
+              : <Play className="size-3.5" />}
             Apply
           </Button>
         </div>
+      </div>
 
-        <div className="max-w-xs">
-          <p className="mb-4 text-[11px] font-medium uppercase tracking-widest text-muted-foreground/40">
-            Options
-          </p>
-          <div className="flex flex-col gap-px rounded-xl border border-border overflow-hidden bg-border">
-            <div className="bg-card px-4 py-4">
-              {Config ? (
-                <Config />
-              ) : (
-                <p className="text-[13px] text-muted-foreground">
-                  No options for this mode.
-                </p>
-              )}
-            </div>
+      {/* Body */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Mode list */}
+        <div className="flex w-52 shrink-0 flex-col overflow-y-auto border-r border-border py-3">
+          {modes.map((m) => {
+            const Icon = m.icon;
+            const isActive = active === m.id;
+            return (
+              <button
+                type="button"
+                key={m.id}
+                onClick={() => setActive(m.id)}
+                className={cn(
+                  "group flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
+                  isActive
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                )}
+              >
+                <Icon className={cn("size-3.5 shrink-0", isActive ? "text-foreground" : "text-muted-foreground/50 group-hover:text-muted-foreground")} />
+                <span className="text-[13px] font-medium">{m.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Config panel */}
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          {/* Mode header */}
+          <div className="border-b border-border px-8 py-5">
+            <p className="text-[15px] font-semibold">{activeMode.label}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{activeMode.desc}</p>
           </div>
+
+          {/* Options */}
+          {Config ? (
+            <div className="overflow-hidden">
+              <Config />
+            </div>
+          ) : (
+            <div className="px-8 py-6">
+              <p className="text-sm text-muted-foreground">No options for this mode.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
